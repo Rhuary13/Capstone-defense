@@ -1,6 +1,16 @@
 <?php
 session_start();
-include '../config/config.php'; // make sure this points to your config.php
+
+// Database connection
+$host = "localhost";
+$user = "root";
+$pass = "";
+$db   = "auth";
+$conn = new mysqli($host, $user, $pass, $db);
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
 
 $message = "";
 

@@ -11,7 +11,7 @@
 
       <!-- Dashboard -->
       <li>
-        <a href="/capstone/staff/dashboard.php" 
+        <a href="/Capstone-defense/staff/dashboard.php" 
            class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-blue-500 transition">
           <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
           <span>Dashboard</span>
@@ -34,13 +34,13 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-8 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm">
-          <li><a href="/capstone/staff/module1/module1.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Staff Module Creation</a></li>
-          <li><a href="/capstone/staff/module1/module1.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Module Content</a></li>
-          <li><a href="/capstone/staff/module1/module1.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Scheduling</a></li>
-          <li><a href="/capstone/staff/module1/module1.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Records</a></li>
-          <li><a href="/capstone/staff/module1/module1.5.php" class="block px-2 py-2 rounded hover:bg-blue-500">Assessment & Evaluation</a></li>
-          <li><a href="/capstone/staff/module1/module1.6.php" class="block px-2 py-2 rounded hover:bg-blue-500">Completion Tracking</a></li>
-          <li><a href="/capstone/staff/module1/module1.7.php" class="block px-2 py-2 rounded hover:bg-blue-500">Analytics</a></li>
+          <li><a href="/Capstone-defense/staff/module1/module1.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Staff Module Creation</a></li>
+          <li><a href="/Capstone-defense/staff/module1/module1.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Module Content</a></li>
+          <li><a href="/Capstone-defense/staff/module1/module1.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Scheduling</a></li>
+          <li><a href="/Capstone-defense/staff/module1/module1.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Records</a></li>
+          <li><a href="/Capstone-defense/staff/module1/module1.5.php" class="block px-2 py-2 rounded hover:bg-blue-500">Assessment & Evaluation</a></li>
+          <li><a href="/Capstone-defense/staff/module1/module1.6.php" class="block px-2 py-2 rounded hover:bg-blue-500">Completion Tracking</a></li>
+          <li><a href="/Capstone-defense/staff/module1/module1.7.php" class="block px-2 py-2 rounded hover:bg-blue-500">Analytics</a></li>
         </ul>
       </li>
 
@@ -60,10 +60,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-8 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm">
-          <li><a href="/capstone/staff/module2/module2.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Event Scheduling</a></li>
-          <li><a href="/capstone/staff/module2/module2.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Role Assignment</a></li>
-          <li><a href="/capstone/staff/module2/module2.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Safety Protocols</a></li>
-          <li><a href="/capstone/staff/module2/module2.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Notifications</a></li>
+          <li><a href="/Capstone-defense/staff/module2/module2.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Event Scheduling</a></li>
+          <li><a href="/Capstone-defense/staff/module2/module2.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Role Assignment</a></li>
+          <li><a href="/Capstone-defense/staff/module2/module2.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Safety Protocols</a></li>
+          <li><a href="/Capstone-defense/staff/module2/module2.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Notifications</a></li>
         </ul>
       </li>
 
@@ -83,10 +83,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-8 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm">
-          <li><a href="/capstone/staff/module3/module3.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Registration Portal</a></li>
-          <li><a href="/capstone/staff/module3/module3.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Attendance Tracking</a></li>
-          <li><a href="/capstone/staff/module3/module3.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Capacity Management</a></li>
-          <li><a href="/capstone/staff/module3/module3.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Reporting</a></li>
+          <li><a href="/Capstone-defense/staff/module3/module3.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Registration Portal</a></li>
+          <li><a href="/Capstone-defense/staff/module3/module3.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Attendance Tracking</a></li>
+          <li><a href="/Capstone-defense/staff/module3/module3.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Capacity Management</a></li>
+          <li><a href="/Capstone-defense/staff/module3/module3.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Reporting</a></li>
         </ul>
       </li>
 
@@ -106,10 +106,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-8 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm">
-          <li><a href="/capstone/staff/module4/module4.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Scenario Templates</a></li>
-          <li><a href="/capstone/staff/module4/module4.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Variable Configuration</a></li>
-          <li><a href="/capstone/staff/module4/module4.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Decision Points</a></li>
-          <li><a href="/capstone/staff/module4/module4.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Debriefing</a></li>
+          <li><a href="/Capstone-defense/staff/module4/module4.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Scenario Templates</a></li>
+          <li><a href="/Capstone-defense/staff/module4/module4.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Variable Configuration</a></li>
+          <li><a href="/Capstone-defense/staff/module4/module4.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Decision Points</a></li>
+          <li><a href="/Capstone-defense/staff/module4/module4.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Debriefing</a></li>
         </ul>
       </li>
 
@@ -129,12 +129,12 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-8 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm">
-          <li><a href="/capstone/staff/module5/module5.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Criteria</a></li>
-          <li><a href="/capstone/staff/module5/module5.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Data</a></li>
-          <li><a href="/capstone/staff/module5/module5.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Scoring</a></li>
-          <li><a href="/capstone/staff/module5/module5.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Reports</a></li>
-          <li><a href="/capstone/staff/module5/module5.5.php" class="block px-2 py-2 rounded hover:bg-blue-500">Feedback</a></li>
-          <li><a href="/capstone/staff/module5/module5.6.php" class="block px-2 py-2 rounded hover:bg-blue-500">History</a></li>
+          <li><a href="/Capstone-defense/staff/module5/module5.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Criteria</a></li>
+          <li><a href="/Capstone-defense/staff/module5/module5.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Data</a></li>
+          <li><a href="/Capstone-defense/staff/module5/module5.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Scoring</a></li>
+          <li><a href="/Capstone-defense/staff/module5/module5.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Reports</a></li>
+          <li><a href="/Capstone-defense/staff/module5/module5.5.php" class="block px-2 py-2 rounded hover:bg-blue-500">Feedback</a></li>
+          <li><a href="/Capstone-defense/staff/module5/module5.6.php" class="block px-2 py-2 rounded hover:bg-blue-500">History</a></li>
         </ul>
       </li>
 
@@ -154,10 +154,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-8 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm">
-          <li><a href="/capstone/staff/module6/module6.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Certification Criteria</a></li>
-          <li><a href="/capstone/staff/module6/module6.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Certificate Designer</a></li>
-          <li><a href="/capstone/staff/module6/module6.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Issuance & Renewal</a></li>
-          <li><a href="/capstone/staff/module6/module6.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Credential Verification</a></li>
+          <li><a href="/Capstone-defense/staff/module6/module6.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Certification Criteria</a></li>
+          <li><a href="/Capstone-defense/staff/module6/module6.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Certificate Designer</a></li>
+          <li><a href="/Capstone-defense/staff/module6/module6.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Issuance & Renewal</a></li>
+          <li><a href="/Capstone-defense/staff/module6/module6.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Credential Verification</a></li>
         </ul>
       </li>
 
@@ -177,16 +177,16 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-8 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm">
-          <li><a href="/capstone/staff/module7/module7.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Equipment List</a></li>
-          <li><a href="/capstone/staff/module7/module7.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Gear Checkout</a></li>
-          <li><a href="/capstone/staff/module7/module7.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Maintenance Tracker</a></li>
-          <li><a href="/capstone/staff/module7/module7.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Damage Reports</a></li>
+          <li><a href="/Capstone-defense/staff/module7/module7.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Equipment List</a></li>
+          <li><a href="/Capstone-defense/staff/module7/module7.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Gear Checkout</a></li>
+          <li><a href="/Capstone-defense/staff/module7/module7.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Maintenance Tracker</a></li>
+          <li><a href="/Capstone-defense/staff/module7/module7.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Damage Reports</a></li>
         </ul>
       </li>
 
       <!-- Logout -->
       <li>
-        <a href="/capstone/auth/logout.php"
+        <a href="/Capstone-defense/auth/logout.php"
            class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-red-500 transition">
           <i data-lucide="log-out" class="w-5 h-5"></i>
           <span>Logout</span>

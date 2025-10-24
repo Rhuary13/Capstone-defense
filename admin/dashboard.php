@@ -4,7 +4,7 @@ session_start();
 $host = "localhost";
 $user = "root";
 $pass = ""; // or your MySQL password if set
-$db   = "auth";
+$db   = "training_management";
 
 // ✅ Create connection
 $conn = new mysqli($host, $user, $pass, $db);

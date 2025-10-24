@@ -7,6 +7,6 @@ session_unset();
 session_destroy();
 
 // Redirect back to login
-header("Location: /capstone/auth/login.php");
+header("Location: /Capstone-defense/auth/login.php");
 exit;
 ?>

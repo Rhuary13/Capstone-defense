@@ -32,7 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             // If plain text was found, re-hash it for future logins
             if ($password === $dbPass) {
-                $newHash = password_hash($dbPass, PASSWORD_DEFAULT);
+                $newHash = password($dbPass, PASSWORD_DEFAULT);
                 $upd = $conn->prepare("UPDATE users SET password=? WHERE id=?");
                 $upd->bind_param("si", $newHash, $row['id']);
                 $upd->execute();
