@@ -1,7 +1,9 @@
 <?php
 session_start();
 
+// =========================
 // Database connection
+// =========================
 $host = "localhost";
 $user = "root";
 $pass = "";
@@ -12,14 +14,17 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-$message = ""; // ✅ Initialize message
+$message = ""; // Initialize feedback message
 
+// =========================
+// Login Processing
+// =========================
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
 
-    // Get user
-    $stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username=? LIMIT 1");
+    // Fetch user
+    $stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username = ? LIMIT 1");
     $stmt->bind_param("s", $username);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -27,27 +32,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($row = $result->fetch_assoc()) {
         $dbPass = $row['password'];
 
-        // ✅ Check plain text OR hashed
-        if ($password === $dbPass || password_verify($password, $dbPass)) {
+        // Since you're using plaintext, direct comparison only
+        if ($password === $dbPass) {
 
-            // If plain text was found, re-hash it for future logins
-            if ($password === $dbPass) {
-                $newHash = password($dbPass, PASSWORD_DEFAULT);
-                $upd = $conn->prepare("UPDATE users SET password=? WHERE id=?");
-                $upd->bind_param("si", $newHash, $row['id']);
-                $upd->execute();
-                $upd->close();
-            }
-
-            // ✅ Regenerate session for security
+            // Regenerate session for security
             session_regenerate_id(true);
 
-            // ✅ Store session values
+            // Store user info in session
             $_SESSION['id']       = $row['id'];
             $_SESSION['username'] = $row['username'];
             $_SESSION['role']     = $row['role'];
 
-            // ✅ Redirect based on role
+            // Redirect based on role
             if ($row['role'] === "admin") {
                 header("Location: ../admin/dashboard.php");
             } elseif ($row['role'] === "staff") {
@@ -62,8 +58,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } else {
         $message = "User not found.";
     }
+
+    $stmt->close();
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -73,6 +72,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gradient-to-r from-blue-500 to-purple-600">
+
 <div class="bg-white p-8 rounded-2xl shadow-lg w-96">
     <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Login</h2>
 
@@ -103,5 +103,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         Don’t have an account? <a href="register.php" class="text-blue-500 underline">Register here</a>
     </p>
 </div>
+
 </body>
 </html>
