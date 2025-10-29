@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 19, 2025 at 08:31 PM
+-- Generation Time: Oct 25, 2025 at 08:59 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -41,9 +41,9 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `username`, `password`, `role`, `created_at`) VALUES
 (7, 'admin', 'admin123', 'admin', '2025-09-24 11:51:05'),
-(8, 'staffuser', '$2y$10$yfWSGODRcN5MzrClJHQ/4uEQJQhu8lu2F3VIkbIF1IOwYEFcDqt42', 'staff', '2025-09-24 11:51:05'),
-(9, 'normaluser', '$2y$10$JdqcHJxqMyNqLmTmySi9cu3HG4pQYIzxNC25hbYb0I1fz8VW5hCFO', 'user', '2025-09-24 11:51:05'),
-(10, 'adminuser', '$2y$10$xPw/FbuoVu7AMrzcf/LXiOPqJvb4GNApv1hXx7RKPysFCWhqV6MKu', 'admin', '2025-09-24 14:09:16');
+(8, 'staffuser', 'staff123', 'staff', '2025-09-24 11:51:05'),
+(9, 'normaluser', 'user123', 'user', '2025-09-24 11:51:05'),
+(15, 'Rhuary123', 'Rhuary123', 'user', '2025-10-24 13:50:17');
 
 --
 -- Indexes for dumped tables
@@ -64,7 +64,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

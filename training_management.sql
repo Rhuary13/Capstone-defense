@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 19, 2025 at 08:30 PM
+-- Generation Time: Oct 25, 2025 at 08:59 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -219,6 +219,19 @@ CREATE TABLE `participant_records` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `programs`
+--
+
+CREATE TABLE `programs` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `progress_tracking`
 --
 
@@ -244,7 +257,8 @@ CREATE TABLE `quizzes` (
   `option_b` varchar(255) DEFAULT NULL,
   `option_c` varchar(255) DEFAULT NULL,
   `option_d` varchar(255) DEFAULT NULL,
-  `correct_option` char(1) NOT NULL
+  `correct_option` char(1) NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -331,6 +345,19 @@ CREATE TABLE `registrations` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `resources`
+--
+
+CREATE TABLE `resources` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `file_name` varchar(255) NOT NULL,
+  `file_path` varchar(1024) NOT NULL,
+  `uploaded_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `schedules`
 --
 
@@ -345,6 +372,42 @@ CREATE TABLE `schedules` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `notes` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `staff`
+--
+
+CREATE TABLE `staff` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `name` varchar(191) NOT NULL,
+  `role` varchar(100) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `staff`
+--
+
+INSERT INTO `staff` (`id`, `name`, `role`, `created_at`) VALUES
+(1, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:01:50'),
+(2, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:12'),
+(3, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:18'),
+(4, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:26'),
+(5, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:36'),
+(6, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:03:18'),
+(7, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:06'),
+(8, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:14'),
+(9, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:20'),
+(10, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:15:04'),
+(11, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:16:18'),
+(12, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:16:45'),
+(13, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:31'),
+(14, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:32'),
+(15, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:51'),
+(16, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:53'),
+(17, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:29:04');
 
 -- --------------------------------------------------------
 
@@ -383,7 +446,11 @@ CREATE TABLE `training_modules` (
 --
 
 INSERT INTO `training_modules` (`id`, `title`, `prerequisite_id`, `objectives`, `disaster_type`, `file_name`, `status`, `created_by`, `created_at`) VALUES
-(1, 'Disaster Preparedness Training and Simulation', NULL, 'BEING PREPARED', 'All Disaster Type', NULL, 'pending', 'staff', '2025-09-24 15:44:27');
+(1, 'Disaster Preparedness Training and Simulation', NULL, 'BEING PREPARED', 'All Disaster Type', NULL, 'pending', 'staff', '2025-09-24 15:44:27'),
+(2, 'Earthquake Drills', NULL, 'Being prepared for natural disaster \"Earthquake\"', 'Earthquake', NULL, 'pending', 'staff', '2025-10-25 13:34:40'),
+(4, 'NEXTGEN IT: PREPARING FOR THE DIGITAL WORKPLACE', NULL, 'This program teaches college students to be prepared for the workplace of an IT who\'s graduating', 'All Disaster Type', 'OJT_PRACTICUM_1_NARRATIVE_REPORT__1___1__1761417487_9eecc673a6ec.pdf', 'pending', 'staff', '2025-10-25 18:38:07'),
+(5, 'Familiarizing with AI fundamentals', NULL, 'IT\'s should familiarize to the modern world', 'All Disaster Type', 'Session_1__Familiarizing_with_AI_fundamentals_1761417589_026b0b389d69.pdf', 'pending', 'staff', '2025-10-25 18:39:49'),
+(6, 'AI Tools, technologies, and How to leverage them', NULL, 'Leveraging the AI tools, Technologies for advance tech', 'All Disaster Type', 'Session_2__AI_Tools__Technologies__and_How_to_Leve_1761417698_87653fbe3a0f.pdf', 'pending', 'staff', '2025-10-25 18:41:38');
 
 -- --------------------------------------------------------
 
@@ -497,6 +564,12 @@ ALTER TABLE `participant_records`
   ADD KEY `participant_id` (`participant_id`);
 
 --
+-- Indexes for table `programs`
+--
+ALTER TABLE `programs`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `progress_tracking`
 --
 ALTER TABLE `progress_tracking`
@@ -549,11 +622,23 @@ ALTER TABLE `registrations`
   ADD UNIQUE KEY `idx_email` (`email`);
 
 --
+-- Indexes for table `resources`
+--
+ALTER TABLE `resources`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `schedules`
 --
 ALTER TABLE `schedules`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_event_date_time` (`event_date`,`start_time`);
+
+--
+-- Indexes for table `staff`
+--
+ALTER TABLE `staff`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `training_completion`
@@ -640,6 +725,12 @@ ALTER TABLE `participant_records`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `programs`
+--
+ALTER TABLE `programs`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `progress_tracking`
 --
 ALTER TABLE `progress_tracking`
@@ -682,10 +773,22 @@ ALTER TABLE `registrations`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `resources`
+--
+ALTER TABLE `resources`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `schedules`
 --
 ALTER TABLE `schedules`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `staff`
+--
+ALTER TABLE `staff`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `training_completion`
@@ -697,7 +800,7 @@ ALTER TABLE `training_completion`
 -- AUTO_INCREMENT for table `training_modules`
 --
 ALTER TABLE `training_modules`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `training_programs`

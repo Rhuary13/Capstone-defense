@@ -1,315 +1,261 @@
 <?php
+// module1.2.php — Content Structuring (single-file, admin)
+// Assumes lessons table columns: id, title, content, created_at
+
 session_start();
-// Database connection
-$host = "localhost";
-$user = "root";
-$pass = ""; // or your MySQL password if set
-$db   = "training_management"; // <-- use your actual DB name
 
-$conn = new mysqli($host, $user, $pass, $db);
+// ------------------ DB connect ------------------
+$DB_HOST = 'localhost';
+$DB_USER = 'root';
+$DB_PASS = '';
+$DB_NAME = 'training_management';
+
+$conn = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
 if ($conn->connect_error) {
-    die("Connection failed: " . htmlspecialchars($conn->connect_error));
+    die('DB connect error: ' . htmlspecialchars($conn->connect_error));
 }
 
-// Security: require login
-if (!isset($_SESSION['id'])) {
-    header("Location: ../auth/login.php");
+// ------------------ Admin check ------------------
+if (!isset($_SESSION['id']) || ($_SESSION['role'] ?? '') !== 'admin') {
+    header('Location: ../auth/login.php');
     exit;
 }
 
-// -------- Export CSV (simple) --------
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename=training_programs.csv');
-    $out = fopen('php://output', 'w');
-    fputcsv($out, ['id','title','definition','scope','goal','format','example','created_at']);
-    $res = $conn->query("SELECT id,title,definition,scope,goal,format,example,created_at FROM training_programs ORDER BY created_at DESC");
-    if ($res) {
-        while ($r = $res->fetch_assoc()) {
-            fputcsv($out, [$r['id'],$r['title'],$r['definition'],$r['scope'],$r['goal'],$r['format'],$r['example'],$r['created_at']]);
-        }
-    }
-    fclose($out);
-    exit;
-}
+// ------------------ CSRF ------------------
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+$CSRF = $_SESSION['csrf_token'];
 
-// ---------- Helpers ----------
+// ------------------ Helpers ------------------
 function esc($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
+function table_exists($conn, $table){
+    $t = $conn->real_escape_string($table);
+    $r = $conn->query("SHOW TABLES LIKE '{$t}'");
+    return ($r && $r->num_rows > 0);
+}
+function column_exists($conn, $table, $column){
+    $t = $conn->real_escape_string($table);
+    $c = $conn->real_escape_string($column);
+    $r = $conn->query("SHOW COLUMNS FROM `{$t}` LIKE '{$c}'");
+    return ($r && $r->num_rows > 0);
+}
 
-// ---------- Handle POSTs (Create / Update) with prepared statements ----------
-$postErrors = [];
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // create
-    if (isset($_POST['add_program'])) {
-        $title = trim($_POST['title'] ?? '');
-        if ($title === '') $postErrors[] = 'Title is required.';
-        if (empty($postErrors)) {
-            $stmt = $conn->prepare("INSERT INTO training_programs (title, definition, scope, goal, format, example, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
-            $stmt->bind_param('ssssss', $_POST['title'], $_POST['definition'], $_POST['scope'], $_POST['goal'], $_POST['format'], $_POST['example']);
-            $stmt->execute();
-            $stmt->close();
-            header('Location: program.php?success=1');
-            exit;
-        }
-    }
+// ------------------ Messages ------------------
+$errors = [];
+$success = [];
 
-    // update
-    if (isset($_POST['update_program'])) {
-        $id = (int)($_POST['id'] ?? 0);
+// ------------------ POST: Add Lesson ------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_lesson'])) {
+    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
+        $errors[] = 'Invalid CSRF token.';
+    } else {
         $title = trim($_POST['title'] ?? '');
-        if ($id <= 0) $postErrors[] = 'Invalid program id.';
-        if ($title === '') $postErrors[] = 'Title is required.';
-        if (empty($postErrors)) {
-            $stmt = $conn->prepare("UPDATE training_programs SET title=?, definition=?, scope=?, goal=?, format=?, example=? WHERE id=?");
-            $stmt->bind_param('ssssssi', $_POST['title'], $_POST['definition'], $_POST['scope'], $_POST['goal'], $_POST['format'], $_POST['example'], $id);
-            $stmt->execute();
+        $content = trim($_POST['content'] ?? '');
+
+        if ($title === '') $errors[] = 'Title is required.';
+        if ($content === '') $errors[] = 'Content is required.';
+
+        if (empty($errors)) {
+            $stmt = $conn->prepare("INSERT INTO lessons (title, content, created_at) VALUES (?, ?, NOW())");
+            $stmt->bind_param('ss', $title, $content);
+            if ($stmt->execute()) {
+                $success[] = 'Lesson created successfully.';
+            } else {
+                $errors[] = 'DB error (insert lesson): ' . $stmt->error;
+            }
             $stmt->close();
-            header('Location: program.php?updated=1');
-            exit;
         }
     }
 }
 
-// ---------- Delete via GET (confirm client-side) ----------
-if (isset($_GET['delete'])) {
-    $id = (int) $_GET['delete'];
+// ------------------ GET: Delete Lesson ------------------
+if (isset($_GET['delete_lesson'])) {
+    $id = (int)$_GET['delete_lesson'];
     if ($id > 0) {
-        $stmt = $conn->prepare("DELETE FROM training_programs WHERE id=?");
+        $stmt = $conn->prepare("DELETE FROM lessons WHERE id=?");
         $stmt->bind_param('i', $id);
-        $stmt->execute();
+        if ($stmt->execute()) $success[] = 'Lesson deleted.';
+        else $errors[] = 'Failed to delete: ' . $stmt->error;
         $stmt->close();
+        // redirect to remove query param
+        header('Location: ' . strtok($_SERVER["REQUEST_URI"], '?'));
+        exit;
     }
-    header('Location: program.php?deleted=1');
-    exit;
 }
 
-// ---------- Fetch (for edit) ----------
-$editData = null;
-if (isset($_GET['edit'])) {
-    $id = (int) $_GET['edit'];
-    $stmt = $conn->prepare("SELECT * FROM training_programs WHERE id=? LIMIT 1");
-    $stmt->bind_param('i', $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $editData = $result->fetch_assoc();
-    $stmt->close();
+// ------------------ Fetch lessons for listing ------------------
+// Use created_at ordering; fallback to id if needed
+$lessons_q = $conn->query("SELECT id, title, content, created_at FROM lessons ORDER BY created_at DESC");
+if (!$lessons_q) {
+    $lessons_q = $conn->query("SELECT id, title, content, created_at FROM lessons ORDER BY id DESC");
 }
 
-// ---------- Fetch all programs (with simple pagination) ----------
-$page = max(1, (int)($_GET['page'] ?? 1));
-$perPage = 12;
-$offset = ($page - 1) * $perPage;
-$totalR = $conn->query("SELECT COUNT(*) AS c FROM training_programs");
-$total = 0;
-if ($totalR) { $total = (int)$totalR->fetch_assoc()['c']; }
-$pages = max(1, (int)ceil($total / $perPage));
-$stmt = $conn->prepare("SELECT id,title,definition,scope,goal,format,example,created_at FROM training_programs ORDER BY created_at DESC LIMIT ? OFFSET ?");
-$stmt->bind_param('ii', $perPage, $offset);
-$stmt->execute();
-$programs = $stmt->get_result();
+// ------------------ Fetch quizzes safely (if table exists) ------------------
+$quizzes_q = false;
+if (table_exists($conn, 'quizzes')) {
+    if (column_exists($conn, 'quizzes', 'created_at')) {
+        $quizzes_q = $conn->query("SELECT q.*, l.title AS lesson_title FROM quizzes q LEFT JOIN lessons l ON q.lesson_id = l.id ORDER BY q.created_at DESC");
+    } else {
+        $quizzes_q = $conn->query("SELECT q.*, l.title AS lesson_title FROM quizzes q LEFT JOIN lessons l ON q.lesson_id = l.id ORDER BY q.id DESC");
+    }
+}
+
+// Example SQL for quizzes if missing (shown in UI)
+$example_sql = <<<SQL
+-- Example SQL to create quizzes & questions:
+CREATE TABLE quizzes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  lesson_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE quiz_questions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  quiz_id INT NOT NULL,
+  question TEXT NOT NULL,
+  option_a TEXT, option_b TEXT, option_c TEXT, option_d TEXT,
+  correct CHAR(1) NOT NULL
+);
+SQL;
 
 ?>
-
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Training Programs — Admin</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Content Structuring — Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/alpinejs@3.x.x" defer></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     html,body{height:100%}
     .app{display:flex;height:100vh;overflow:hidden}
     .main-wrap{flex:1;display:flex;flex-direction:column;min-width:0}
-    .main-scroll{flex:1;overflow:auto;min-height:0;padding:1.5rem}
-    /* subtle table wrapping */
-    .table-cell-truncate{max-width:16rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .main-scroll{flex:1;overflow:auto;min-height:0;padding:1.5rem;background:#f8fafc}
+    .truncate{max-width:18rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   </style>
 </head>
-<body class="bg-slate-50 font-sans">
+<body class="font-sans text-slate-800">
 
-  <div class="app">
-    <!-- Sidebar include if exists -->
-    <?php if (file_exists(__DIR__ . '/../sidebar.php')): ?>
-      <?php include __DIR__ . '/../sidebar.php'; ?>
-    <?php else: ?>
-      <aside style="width:16rem;background:#fff;border-right:1px solid #edf2f7;padding:1rem;"> 
-        <div class="font-bold text-lg">Admin</div>
-      </aside>
-    <?php endif; ?>
+<div class="app">
+  <!-- Sidebar include -->
+  <?php include '../sidebar.php'; ?>
 
-    <div class="main-wrap">
-      <header class="bg-white border-b h-16 flex items-center justify-between px-6">
-        <div>
-          <h1 class="text-lg font-semibold text-slate-800">Training Programs</h1>
-          <div class="text-sm text-slate-500">Manage training programs and curriculum</div>
-        </div>
-        <div class="flex items-center gap-3">
-          <a href="?export=csv" class="px-3 py-2 bg-gray-100 rounded text-sm">Export CSV</a>
-          <div class="text-sm text-slate-700">Signed in as <strong><?= esc($_SESSION['username'] ?? 'User') ?></strong></div>
-        </div>
-      </header>
+  <div class="main-wrap">
+    <header class="bg-white border-b h-16 flex items-center justify-between px-6">
+      <div>
+        <h1 class="text-lg font-semibold">Content Structuring</h1>
+        <div class="text-sm text-slate-500">Create lessons and manage quizzes</div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="text-sm text-slate-700">Signed in as <strong><?= esc($_SESSION['username'] ?? 'Admin') ?></strong></div>
+      </div>
+    </header>
 
-      <main class="main-scroll" role="main">
-        <div class="max-w-6xl mx-auto">
-          <?php if (!empty($postErrors)): ?>
-            <div class="mb-4 p-3 rounded-lg bg-rose-50 text-rose-700 border border-rose-100">
-              <strong>Errors:</strong>
-              <ul class="mt-1">
-                <?php foreach ($postErrors as $pe): ?><li><?= esc($pe) ?></li><?php endforeach; ?>
-              </ul>
-            </div>
-          <?php endif; ?>
+    <main class="main-scroll" role="main">
+      <div class="max-w-6xl mx-auto">
 
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Form panel -->
-            <section class="bg-white p-6 rounded-2xl shadow">
-              <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold"><?= $editData ? 'Edit Program' : 'Add Program' ?></h2>
-                <?php if ($editData): ?>
-                  <a href="program.php" class="text-sm text-slate-500">New</a>
-                <?php endif; ?>
+        <!-- messages -->
+        <?php foreach ($errors as $er): ?>
+          <div class="mb-3 p-3 rounded bg-rose-50 border border-rose-100 text-rose-800"><?= esc($er) ?></div>
+        <?php endforeach; ?>
+        <?php foreach ($success as $s): ?>
+          <div class="mb-3 p-3 rounded bg-green-50 border border-green-100 text-green-800"><?= esc($s) ?></div>
+        <?php endforeach; ?>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Lesson form -->
+          <section class="bg-white p-6 rounded-2xl shadow">
+            <h2 class="text-lg font-semibold mb-3">Create Lesson</h2>
+            <form method="POST">
+              <input type="hidden" name="csrf_token" value="<?= esc($CSRF) ?>">
+              <div class="mb-3">
+                <label class="text-sm font-medium">Title</label>
+                <input name="title" required class="mt-1 w-full px-3 py-2 border rounded" />
               </div>
-
-              <form method="POST" class="space-y-3">
-                <input type="hidden" name="id" value="<?= esc($editData['id'] ?? '') ?>">
-
-                <div>
-                  <label class="text-sm font-medium">Title</label>
-                  <input name="title" required value="<?= esc($editData['title'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border rounded-lg" />
-                </div>
-
-                <div>
-                  <label class="text-sm font-medium">Definition</label>
-                  <textarea name="definition" rows="3" class="mt-1 w-full px-3 py-2 border rounded-lg"><?= esc($editData['definition'] ?? '') ?></textarea>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label class="text-sm font-medium">Scope</label>
-                    <textarea name="scope" rows="2" class="mt-1 w-full px-3 py-2 border rounded-lg"><?= esc($editData['scope'] ?? '') ?></textarea>
-                  </div>
-                  <div>
-                    <label class="text-sm font-medium">Goal</label>
-                    <textarea name="goal" rows="2" class="mt-1 w-full px-3 py-2 border rounded-lg"><?= esc($editData['goal'] ?? '') ?></textarea>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label class="text-sm font-medium">Format</label>
-                    <input name="format" value="<?= esc($editData['format'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border rounded-lg" />
-                  </div>
-                  <div>
-                    <label class="text-sm font-medium">Example</label>
-                    <input name="example" value="<?= esc($editData['example'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border rounded-lg" />
-                  </div>
-                </div>
-
-                <div class="flex gap-2 justify-end">
-                  <?php if ($editData): ?>
-                    <button type="submit" name="update_program" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">Update Program</button>
-                    <a href="program.php" class="px-4 py-2 bg-gray-100 rounded-lg">Cancel</a>
-                  <?php else: ?>
-                    <button type="submit" name="add_program" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">Save Program</button>
-                  <?php endif; ?>
-                </div>
-              </form>
-
-              <div class="mt-6 text-sm text-slate-500">
-                <strong>Tip:</strong> Use concise titles and a short definition to keep lists readable.
+              <div class="mb-3">
+                <label class="text-sm font-medium">Content</label>
+                <textarea name="content" rows="6" class="mt-1 w-full px-3 py-2 border rounded"></textarea>
               </div>
-            </section>
-
-            <!-- Programs list (spans 2 columns on large screens) -->
-            <section class="lg:col-span-2 bg-white p-6 rounded-2xl shadow">
-              <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold">Existing Programs</h2>
-                <div class="flex items-center gap-3">
-                  <input id="search" placeholder="Search title..." class="px-3 py-2 border rounded-lg text-sm" oninput="filterTable(this.value)">
-                  <label class="text-sm text-slate-500">Showing <?= $programs->num_rows ?> of <?= $total ?></label>
-                </div>
+              <div class="flex justify-end">
+                <button type="submit" name="add_lesson" class="px-4 py-2 bg-indigo-600 text-white rounded">Save Lesson</button>
               </div>
+            </form>
+            <div class="text-xs text-slate-400 mt-3">Note: your lessons table stores the lesson body in <code>content</code>.</div>
+          </section>
 
-              <div class="overflow-auto rounded-lg border border-slate-100">
+          <!-- placeholder quizzes panel -->
+          <section class="bg-white p-6 rounded-2xl shadow">
+            <h2 class="text-lg font-semibold mb-3">Quizzes</h2>
+            <?php if ($quizzes_q !== false): ?>
+              <p class="text-sm text-slate-500 mb-3">Recent quizzes</p>
+              <div class="overflow-auto rounded border border-slate-100">
                 <table class="min-w-full text-sm">
                   <thead class="bg-slate-50 text-slate-700 text-xs uppercase">
                     <tr>
-                      <th class="px-3 py-2 text-left">Title</th>
-                      <th class="px-3 py-2 text-left">Definition</th>
-                      <th class="px-3 py-2 text-left">Scope</th>
-                      <th class="px-3 py-2 text-left">Goal</th>
-                      <th class="px-3 py-2 text-left">Format</th>
+                      <th class="px-3 py-2 text-left">Quiz</th>
+                      <th class="px-3 py-2 text-left">Lesson</th>
                       <th class="px-3 py-2 text-left">Created</th>
-                      <th class="px-3 py-2 text-left">Actions</th>
                     </tr>
                   </thead>
-                  <tbody id="programTable" class="divide-y">
-                    <?php while ($row = $programs->fetch_assoc()): ?>
-                      <tr>
-                        <td class="px-3 py-2 table-cell-truncate" title="<?= esc($row['title']) ?>"><?= esc($row['title']) ?></td>
-                        <td class="px-3 py-2 table-cell-truncate" title="<?= esc($row['definition']) ?>"><?= esc($row['definition']) ?></td>
-                        <td class="px-3 py-2 table-cell-truncate" title="<?= esc($row['scope']) ?>"><?= esc($row['scope']) ?></td>
-                        <td class="px-3 py-2 table-cell-truncate" title="<?= esc($row['goal']) ?>"><?= esc($row['goal']) ?></td>
-                        <td class="px-3 py-2 table-cell-truncate" title="<?= esc($row['format']) ?>"><?= esc($row['format']) ?></td>
-                        <td class="px-3 py-2"><?= esc($row['created_at']) ?></td>
-                        <td class="px-3 py-2 flex gap-3">
-                          <a href="?edit=<?= (int)$row['id'] ?>" class="text-indigo-600 hover:underline">Edit</a>
-                          <a href="#" onclick="confirmDelete(<?= (int)$row['id'] ?>)" class="text-red-600 hover:underline">Delete</a>
-                        </td>
+                  <tbody>
+                    <?php while ($q = $quizzes_q->fetch_assoc()): ?>
+                      <tr class="hover:bg-slate-50">
+                        <td class="px-3 py-2"><?= esc($q['title'] ?? 'Untitled') ?></td>
+                        <td class="px-3 py-2 truncate"><?= esc($q['lesson_title'] ?? '-') ?></td>
+                        <td class="px-3 py-2"><?= esc($q['created_at'] ?? $q['id']) ?></td>
                       </tr>
                     <?php endwhile; ?>
                   </tbody>
                 </table>
               </div>
+            <?php else: ?>
+              <div class="text-sm text-slate-500">No quizzes table found. Create <code>quizzes</code> and <code>quiz_questions</code> to enable quizzes.</div>
+              <pre class="mt-3 p-2 bg-white text-xs rounded border"><?= esc($example_sql) ?></pre>
+            <?php endif; ?>
+          </section>
 
-              <!-- Pagination -->
-              <div class="mt-4 flex items-center justify-end gap-2">
-                <?php if ($page > 1): ?>
-                  <a href="?page=<?= $page-1 ?>" class="px-3 py-1 bg-gray-100 rounded">Prev</a>
-                <?php endif; ?>
-                <div class="text-sm text-slate-500">Page <?= $page ?> / <?= $pages ?></div>
-                <?php if ($page < $pages): ?>
-                  <a href="?page=<?= $page+1 ?>" class="px-3 py-1 bg-gray-100 rounded">Next</a>
-                <?php endif; ?>
-              </div>
+        </div>
 
-            </section>
+        <div class="mt-6 bg-white p-6 rounded-2xl shadow">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Lessons</h3>
+            <div class="text-sm text-slate-500">Total: <?= ($lessons_q ? $lessons_q->num_rows : 0) ?></div>
+          </div>
 
+          <div class="overflow-auto rounded border border-slate-100">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50 text-slate-700 text-xs uppercase">
+                <tr>
+                  <th class="px-3 py-2 text-left">Title</th>
+                  <th class="px-3 py-2 text-left">Content (preview)</th>
+                  <th class="px-3 py-2 text-left">Created</th>
+                  <th class="px-3 py-2 text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+              <?php if ($lessons_q && $lessons_q->num_rows): while ($row = $lessons_q->fetch_assoc()): ?>
+                <tr class="hover:bg-slate-50">
+                  <td class="px-3 py-2 font-medium"><?= esc($row['title']) ?></td>
+                  <td class="px-3 py-2 truncate"><?= esc(substr(strip_tags($row['content']), 0, 180)) ?></td>
+                  <td class="px-3 py-2"><?= esc($row['created_at'] ?? '') ?></td>
+                  <td class="px-3 py-2 flex gap-3">
+                    <a class="text-indigo-600" href="edit_lesson.php?id=<?= (int)$row['id'] ?>">Edit</a>
+                    <a class="text-red-600" href="#" onclick="if(confirm('Delete this lesson?')) window.location='?delete_lesson=<?= (int)$row['id'] ?>'">Delete</a>
+                  </td>
+                </tr>
+              <?php endwhile; else: ?>
+                <tr><td colspan="4" class="p-4 text-center text-slate-500">No lessons yet.</td></tr>
+              <?php endif; ?>
+              </tbody>
+            </table>
           </div>
         </div>
-      </main>
-    </div>
+
+      </div>
+    </main>
   </div>
+</div>
 
-  <!-- Delete confirmation modal (Alpine) -->
-  <div x-data="{}" x-init="() => {}">
-    <template x-teleport="body">
-      <div id="confirmDelete" x-show="false" style="display:none"></div>
-    </template>
-  </div>
-
-  <script>
-    lucide.createIcons();
-    function confirmDelete(id){
-      if (confirm('Delete this program? This action cannot be undone.')){
-        window.location.href = '?delete='+id;
-      }
-    }
-
-    // client-side simple filter (title + definition)
-    function filterTable(q){
-      q = q.trim().toLowerCase();
-      const rows = document.querySelectorAll('#programTable tr');
-      rows.forEach(r=>{
-        const title = r.children[0].innerText.toLowerCase();
-        const def = r.children[1].innerText.toLowerCase();
-        if (!q || title.includes(q) || def.includes(q)) r.style.display = '';
-        else r.style.display = 'none';
-      });
-    }
-  </script>
+<script>lucide.createIcons();</script>
 </body>
 </html>
