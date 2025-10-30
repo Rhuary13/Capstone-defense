@@ -17,13 +17,13 @@ if ($conn->connect_error) {
 // ----------------------
 // AUTH CHECK
 // ----------------------
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'user') {
     header("Location: ../auth/login.php");
     exit;
 }
 
 // This will map your logged-in user to participant_id in attendance
-$participant_id = $_SESSION['user_id'];
+$participant_id = $_SESSION['id'];
 
 // ----------------------
 // CREATE RESPONSES TABLE IF NOT EXISTS

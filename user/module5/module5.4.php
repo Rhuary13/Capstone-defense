@@ -17,12 +17,12 @@ if ($conn->connect_error) {
 // ----------------------
 // AUTH CHECK
 // ----------------------
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'user') {
     header("Location: ../auth/login.php");
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$id = $_SESSION['id'];
 $message = "";
 
 // ----------------------
@@ -45,7 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit_reflection']))
 
     if (!empty($reflection)) {
         $stmt = $conn->prepare("INSERT INTO feedback_debrief (participant_id, reflection) VALUES (?, ?)");
-        $stmt->bind_param("is", $user_id, $reflection);
+        $stmt->bind_param("is", $id, $reflection);
         if ($stmt->execute()) {
             $message = "✅ Thank you! Your reflection has been saved.";
         } else {
@@ -63,7 +63,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit_reflection']))
 $reflections = [];
 $sql = "SELECT reflection, submitted_at FROM feedback_debrief WHERE participant_id = ? ORDER BY submitted_at DESC";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $user_id);
+$stmt->bind_param("i", $id);
 $stmt->execute();
 $result = $stmt->get_result();
 while ($row = $result->fetch_assoc()) {

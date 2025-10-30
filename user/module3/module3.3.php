@@ -17,7 +17,7 @@ if ($conn->connect_error) {
 // ----------------------
 // AUTH CHECK
 // ----------------------
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'user') {
     header("Location: ../auth/login.php");
     exit;
 }

@@ -70,7 +70,7 @@ if ($conn->connect_error) {
         <h3 class="text-xl font-semibold">Ready to Begin?</h3>
         <p class="text-sm opacity-90">Start your training and gain essential knowledge for disaster preparedness.</p>
       </div>
-      <a href="module1.1.php" class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition">
+      <a href="/Capstone-defense/user/module1/module1.1.php" class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition">
         Start Training
       </a>
     </div>

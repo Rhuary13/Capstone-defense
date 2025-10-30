@@ -17,12 +17,12 @@ if ($conn->connect_error) {
 // ----------------------
 // AUTH CHECK
 // ----------------------
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'user') {
     header("Location: ../auth/login.php");
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$id = $_SESSION['id'];
 $message = "";
 
 // ----------------------
@@ -69,7 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit_feedback'])) {
 
     if (!empty($feedback)) {
         $stmt = $conn->prepare("INSERT INTO feedback (participant_id, category, message) VALUES (?, ?, ?)");
-        $stmt->bind_param("iss", $user_id, $category, $feedback);
+        $stmt->bind_param("iss", $id, $category, $feedback);
         if ($stmt->execute()) {
             $message = "✅ Thank you! Your feedback has been submitted.";
         } else {

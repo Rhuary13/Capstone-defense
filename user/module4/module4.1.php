@@ -17,12 +17,12 @@ if ($conn->connect_error) {
 // ----------------------
 // AUTH CHECK
 // ----------------------
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'user') {
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'user') {
     header("Location: ../auth/login.php");
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$id = $_SESSION['id'];
 
 // ----------------------
 // CREATE ATTENDANCE TABLE IF NOT EXISTS
@@ -30,11 +30,11 @@ $user_id = $_SESSION['user_id'];
 $conn->query("
     CREATE TABLE IF NOT EXISTS attendance (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
+        id INT NOT NULL,
         event_id INT NOT NULL,
         status ENUM('Registered','Present','Absent') DEFAULT 'Registered',
         registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_user_event (user_id, event_id)
+        UNIQUE KEY unique_user_event (id, event_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 ");
 
@@ -45,8 +45,8 @@ if (isset($_GET['participate'])) {
     $event_id = (int) $_GET['participate'];
 
     // Insert participation (ignore if already exists)
-    $stmt = $conn->prepare("INSERT IGNORE INTO attendance (user_id, event_id) VALUES (?, ?)");
-    $stmt->bind_param("ii", $user_id, $event_id);
+    $stmt = $conn->prepare("INSERT IGNORE INTO attendance (id, event_id) VALUES (?, ?)");
+    $stmt->bind_param("ii", $id, $event_id);
     $stmt->execute();
     $stmt->close();
 

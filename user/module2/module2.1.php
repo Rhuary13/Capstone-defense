@@ -47,7 +47,7 @@ foreach ($queries as $q) {
 // =========================
 // Mock participant login
 // =========================
-$participant_id = $_SESSION['user_id'] ?? 1;
+$participant_id = $_SESSION['id'] ?? 1;
 
 // =========================
 // Handle attendance confirmation

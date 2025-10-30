@@ -15,14 +15,14 @@ if ($conn->connect_error) {
 }
 
 // Mock participant session (remove when real login exists)
-if (!isset($_SESSION['user_id'])) {
-    $_SESSION['user_id'] = 1; 
+if (!isset($_SESSION['id'])) {
+    $_SESSION['id'] = 1; 
     $_SESSION['full_name'] = "John Doe"; 
     $_SESSION['role'] = "participant"; 
     $_SESSION['user_type'] = "participant";
 }
 
-$user_id = $_SESSION['user_id'] ?? 0; // default 0 if not logged in
+$id = $_SESSION['id'] ?? 0; // default 0 if not logged in
 $user_role = $_SESSION['role'] ?? 'participant';
 
 // Prevent undefined array key warnings
@@ -37,16 +37,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_type === "participant") {
 
     if (isset($_POST['check_in'])) {
         // prevent duplicate check-ins
-        $stmt = $conn->prepare("SELECT id FROM attendance WHERE user_id=? AND date=?");
-        $stmt->bind_param("is", $user_id, $today);
+        $stmt = $conn->prepare("SELECT id FROM attendance WHERE id=? AND date=?");
+        $stmt->bind_param("is", $id, $today);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($result->num_rows > 0) {
             $message = "❌ Already checked in today.";
         } else {
-            $stmt = $conn->prepare("INSERT INTO attendance (user_id, full_name, user_type, check_in, date) VALUES (?, ?, ?, NOW(), ?)");
-            $stmt->bind_param("isss", $user_id, $user_full_name, $user_type, $today);
+            $stmt = $conn->prepare("INSERT INTO attendance (id, full_name, user_type, check_in, date) VALUES (?, ?, ?, NOW(), ?)");
+            $stmt->bind_param("isss", $id, $user_full_name, $user_type, $today);
             if ($stmt->execute()) {
                 $message = "✅ Successfully Checked In!";
             } else {
@@ -56,14 +56,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_type === "participant") {
         $stmt->close();
 
     } elseif (isset($_POST['check_out'])) {
-        $stmt = $conn->prepare("SELECT id FROM attendance WHERE user_id=? AND date=? AND check_out IS NULL");
-        $stmt->bind_param("is", $user_id, $today);
+        $stmt = $conn->prepare("SELECT id FROM attendance WHERE id=? AND date=? AND check_out IS NULL");
+        $stmt->bind_param("is", $id, $today);
         $stmt->execute();
         $result = $stmt->get_result();
 
         if ($result->num_rows > 0) {
-            $stmt = $conn->prepare("UPDATE attendance SET check_out = NOW() WHERE user_id=? AND date=?");
-            $stmt->bind_param("is", $user_id, $today);
+            $stmt = $conn->prepare("UPDATE attendance SET check_out = NOW() WHERE id=? AND date=?");
+            $stmt->bind_param("is", $id, $today);
             if ($stmt->execute()) {
                 $message = "✅ Successfully Checked Out!";
             } else {
@@ -77,8 +77,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_type === "participant") {
 }
 
 // Get last log
-$stmt = $conn->prepare("SELECT check_in, check_out, date FROM attendance WHERE user_id=? ORDER BY date DESC LIMIT 1");
-$stmt->bind_param("i", $user_id);
+$stmt = $conn->prepare("SELECT check_in, check_out, date FROM attendance WHERE id=? ORDER BY date DESC LIMIT 1");
+$stmt->bind_param("i", $id);
 $stmt->execute();
 $result = $stmt->get_result();
 $last_action = $result->fetch_assoc();
