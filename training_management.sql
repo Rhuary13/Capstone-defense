@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 25, 2025 at 08:59 PM
+-- Generation Time: Oct 31, 2025 at 12:05 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -143,6 +143,13 @@ CREATE TABLE `attendance` (
   `date` date NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `attendance`
+--
+
+INSERT INTO `attendance` (`id`, `user_id`, `full_name`, `user_type`, `check_in`, `check_out`, `date`) VALUES
+(15, 0, 'Guest', 'participant', '2025-10-30 14:52:48', NULL, '2025-10-30');
+
 -- --------------------------------------------------------
 
 --
@@ -166,6 +173,7 @@ CREATE TABLE `drills` (
 CREATE TABLE `lessons` (
   `id` int(11) NOT NULL,
   `title` varchar(255) NOT NULL,
+  `summary` text DEFAULT NULL,
   `content` text NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -226,6 +234,22 @@ CREATE TABLE `programs` (
   `id` int(10) UNSIGNED NOT NULL,
   `title` varchar(255) NOT NULL,
   `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `progress`
+--
+
+CREATE TABLE `progress` (
+  `id` int(11) NOT NULL,
+  `participant_id` int(11) NOT NULL,
+  `module_id` int(11) NOT NULL,
+  `status` enum('not started','in progress','completed') DEFAULT 'not started',
+  `score` decimal(5,2) DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -570,6 +594,13 @@ ALTER TABLE `programs`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `progress`
+--
+ALTER TABLE `progress`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_progress` (`participant_id`,`module_id`);
+
+--
 -- Indexes for table `progress_tracking`
 --
 ALTER TABLE `progress_tracking`
@@ -692,7 +723,7 @@ ALTER TABLE `assessment_questions`
 -- AUTO_INCREMENT for table `attendance`
 --
 ALTER TABLE `attendance`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `drills`
@@ -729,6 +760,12 @@ ALTER TABLE `participant_records`
 --
 ALTER TABLE `programs`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `progress`
+--
+ALTER TABLE `progress`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `progress_tracking`

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 25, 2025 at 08:59 PM
+-- Generation Time: Oct 31, 2025 at 12:05 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -20,6 +20,92 @@ SET time_zone = "+00:00";
 --
 -- Database: `simulation_event_planning`
 --
+
+DELIMITER $$
+--
+-- Procedures
+--
+CREATE DEFINER=`root`@`localhost` PROCEDURE `ensure_indexes_and_fks` ()   BEGIN
+  DECLARE cnt INT DEFAULT 0;
+  DECLARE sql_text TEXT;
+
+  -- attendance: index participant_id
+  SELECT COUNT(*) INTO cnt FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance' AND INDEX_NAME = 'idx_attendance_participant';
+  IF cnt = 0 THEN
+    SET sql_text = 'CREATE INDEX idx_attendance_participant ON `attendance` (`participant_id`);';
+    PREPARE s FROM sql_text; EXECUTE s; DEALLOCATE PREPARE s;
+    SELECT 'CREATED INDEX idx_attendance_participant ON attendance(participant_id)' AS info;
+  ELSE
+    SELECT 'SKIP index idx_attendance_participant (exists)' AS info;
+  END IF;
+
+  -- attendance: index event_id
+  SELECT COUNT(*) INTO cnt FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance' AND INDEX_NAME = 'idx_attendance_event';
+  IF cnt = 0 THEN
+    SET sql_text = 'CREATE INDEX idx_attendance_event ON `attendance` (`event_id`);';
+    PREPARE s FROM sql_text; EXECUTE s; DEALLOCATE PREPARE s;
+    SELECT 'CREATED INDEX idx_attendance_event ON attendance(event_id)' AS info;
+  ELSE
+    SELECT 'SKIP index idx_attendance_event (exists)' AS info;
+  END IF;
+
+  -- events: index date (helpful)
+  SELECT COUNT(*) INTO cnt FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'events' AND INDEX_NAME = 'idx_events_date';
+  IF cnt = 0 THEN
+    SET sql_text = 'CREATE INDEX idx_events_date ON `events` (`date`);';
+    PREPARE s FROM sql_text; EXECUTE s; DEALLOCATE PREPARE s;
+    SELECT 'CREATED INDEX idx_events_date ON events(date)' AS info;
+  ELSE
+    SELECT 'SKIP index idx_events_date (exists)' AS info;
+  END IF;
+
+  -- 5) Add foreign key attendance.event_id -> events.id if missing
+  SELECT COUNT(*) INTO cnt
+    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance' AND COLUMN_NAME = 'event_id' AND REFERENCED_TABLE_NAME = 'events';
+  IF cnt = 0 THEN
+    -- use a safe name and attempt to add; if fails, print warning but continue
+    SET @fk_sql = 'ALTER TABLE `attendance` ADD CONSTRAINT fk_attendance_event FOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;';
+    BEGIN
+      DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+      BEGIN
+        SELECT 'WARN: could not add FK fk_attendance_event — check types or existing constraints' AS info;
+      END;
+      PREPARE s FROM @fk_sql; EXECUTE s; DEALLOCATE PREPARE s;
+      SELECT 'ALTERED: fk_attendance_event added (attendance.event_id -> events.id)' AS info;
+    END;
+  ELSE
+    SELECT 'SKIP: Foreign key attendance.event_id -> events.id already present' AS info;
+  END IF;
+
+  -- 6) Add foreign key attendance.participant_id -> participants.id (if participants table exists)
+  SELECT COUNT(*) INTO cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'participants';
+  IF cnt > 0 THEN
+    SELECT COUNT(*) INTO cnt FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'attendance' AND COLUMN_NAME = 'participant_id' AND REFERENCED_TABLE_NAME = 'participants';
+    IF cnt = 0 THEN
+      SET @fk2 = 'ALTER TABLE `attendance` ADD CONSTRAINT fk_attendance_participant FOREIGN KEY (`participant_id`) REFERENCES `participants`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;';
+      BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+        BEGIN
+          SELECT 'WARN: could not add FK fk_attendance_participant — check parent participants table or types' AS info;
+        END;
+        PREPARE s FROM @fk2; EXECUTE s; DEALLOCATE PREPARE s;
+        SELECT 'ALTERED: fk_attendance_participant added (attendance.participant_id -> participants.id)' AS info;
+      END;
+    ELSE
+      SELECT 'SKIP: FK attendance.participant_id -> participants.id already present' AS info;
+    END IF;
+  ELSE
+    SELECT 'SKIP: participants table not present — cannot add FK attendance.participant_id' AS info;
+  END IF;
+
+END$$
+
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -56,7 +142,16 @@ CREATE TABLE `attendance` (
   `full_name` varchar(255) NOT NULL,
   `user_type` enum('participant','staff') NOT NULL DEFAULT 'participant',
   `check_in` time DEFAULT NULL,
-  `check_out` time DEFAULT NULL
+  `check_out` time DEFAULT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `event_id` int(11) NOT NULL,
+  `checked_at` timestamp NULL DEFAULT NULL,
+  `participant_id` int(11) DEFAULT NULL,
+  `confirmed_at` datetime DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `registered_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `attended_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -156,6 +251,22 @@ CREATE TABLE `criteria` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `criteria_scores`
+--
+
+CREATE TABLE `criteria_scores` (
+  `id` int(11) NOT NULL,
+  `event_id` int(11) NOT NULL,
+  `participant_id` int(11) NOT NULL,
+  `criteria_name` varchar(255) NOT NULL,
+  `score` decimal(9,2) NOT NULL DEFAULT 0.00,
+  `max_score` decimal(9,2) NOT NULL DEFAULT 0.00,
+  `scored_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `damage_investigations`
 --
 
@@ -213,6 +324,20 @@ CREATE TABLE `data_entries` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `debriefings`
+--
+
+CREATE TABLE `debriefings` (
+  `id` int(11) NOT NULL,
+  `event_id` int(11) NOT NULL,
+  `feedback_text` text DEFAULT NULL,
+  `resources` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `debriefing_materials`
 --
 
@@ -225,6 +350,20 @@ CREATE TABLE `debriefing_materials` (
   `status` enum('Pending','Approved','Rejected') DEFAULT 'Pending',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `decisions`
+--
+
+CREATE TABLE `decisions` (
+  `id` int(11) NOT NULL,
+  `participant_id` int(11) NOT NULL,
+  `inject_id` int(11) NOT NULL,
+  `decision_text` text NOT NULL,
+  `decided_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -279,7 +418,13 @@ CREATE TABLE `events` (
   `approved_at` timestamp NULL DEFAULT NULL,
   `audience` varchar(100) DEFAULT 'General',
   `location_lat` decimal(10,7) DEFAULT NULL,
-  `location_lng` decimal(10,7) DEFAULT NULL
+  `location_lng` decimal(10,7) DEFAULT NULL,
+  `capacity` int(11) NOT NULL DEFAULT 0,
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `description` text DEFAULT NULL,
+  `event_date` date NOT NULL,
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -308,11 +453,28 @@ CREATE TABLE `exercise_history` (
 
 CREATE TABLE `feedback` (
   `id` int(11) NOT NULL,
+  `participant_id` int(11) NOT NULL,
+  `category` varchar(100) NOT NULL,
+  `message` text NOT NULL,
+  `submitted_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `participant_name` varchar(100) NOT NULL,
   `strengths` text NOT NULL,
   `weaknesses` text NOT NULL,
   `notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `feedback_debrief`
+--
+
+CREATE TABLE `feedback_debrief` (
+  `id` int(11) NOT NULL,
+  `participant_id` int(11) NOT NULL,
+  `reflection` text NOT NULL,
+  `submitted_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -382,16 +544,17 @@ CREATE TABLE `injects` (
   `decision_points` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`decision_points`)),
   `schedule_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`schedule_json`)),
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
+  `event_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `injects`
 --
 
-INSERT INTO `injects` (`id`, `title`, `description`, `status`, `exercise_id`, `decision_points`, `schedule_json`, `created_at`, `updated_at`) VALUES
-(1, 'Power Outage Simulation', 'Simulate a city-wide power outage scenario.', 'pending', NULL, NULL, NULL, '2025-09-24 12:14:23', NULL),
-(2, 'Flood Response Drill', 'Coordinate flood response and evacuations.', 'pending', NULL, NULL, NULL, '2025-09-24 12:14:23', NULL);
+INSERT INTO `injects` (`id`, `title`, `description`, `status`, `exercise_id`, `decision_points`, `schedule_json`, `created_at`, `updated_at`, `event_id`) VALUES
+(1, 'Power Outage Simulation', 'Simulate a city-wide power outage scenario.', 'pending', NULL, NULL, NULL, '2025-09-24 12:14:23', NULL, 0),
+(2, 'Flood Response Drill', 'Coordinate flood response and evacuations.', 'pending', NULL, NULL, NULL, '2025-09-24 12:14:23', NULL, 0);
 
 -- --------------------------------------------------------
 
@@ -506,6 +669,19 @@ CREATE TABLE `participant_scores` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `registrations`
+--
+
+CREATE TABLE `registrations` (
+  `id` int(11) NOT NULL,
+  `participant_id` int(11) NOT NULL,
+  `event_id` int(11) NOT NULL,
+  `registered_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `reports`
 --
 
@@ -547,10 +723,13 @@ INSERT INTO `responses` (`id`, `inject_id`, `participant_name`, `response`, `sub
 
 CREATE TABLE `role_assignments` (
   `id` int(11) NOT NULL,
+  `participant_id` int(11) NOT NULL,
   `participant_name` varchar(255) NOT NULL,
   `role` varchar(255) NOT NULL,
   `acceptance_status` enum('Pending','Accepted','Declined') DEFAULT 'Pending',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `age` int(11) DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -676,7 +855,9 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) NOT NULL,
   `full_name` varchar(255) DEFAULT NULL,
   `role` enum('admin','staff','participant') NOT NULL DEFAULT 'participant',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `name` varchar(255) NOT NULL,
+  `email` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -705,7 +886,16 @@ ALTER TABLE `announcements`
 -- Indexes for table `attendance`
 --
 ALTER TABLE `attendance`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_user_event` (`user_id`,`event_id`),
+  ADD UNIQUE KEY `unique_attendance` (`event_id`,`participant_id`),
+  ADD KEY `idx_attendance_event` (`event_id`),
+  ADD KEY `idx_attendance_user` (`user_id`),
+  ADD KEY `idx_attendance_participant` (`participant_id`),
+  ADD KEY `idx_attendance_event_user` (`event_id`,`user_id`),
+  ADD KEY `idx_participant_event` (`participant_id`,`event_id`),
+  ADD KEY `idx_attendance_event_status` (`event_id`,`status`),
+  ADD KEY `idx_attendance_event_participant` (`event_id`,`participant_id`);
 
 --
 -- Indexes for table `attendance_participants`
@@ -748,6 +938,14 @@ ALTER TABLE `criteria`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `criteria_scores`
+--
+ALTER TABLE `criteria_scores`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_criteria_scores_event` (`event_id`),
+  ADD KEY `idx_criteria_scores_participant` (`participant_id`);
+
+--
 -- Indexes for table `damage_investigations`
 --
 ALTER TABLE `damage_investigations`
@@ -774,10 +972,25 @@ ALTER TABLE `data_entries`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `debriefings`
+--
+ALTER TABLE `debriefings`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_debriefs_event` (`event_id`);
+
+--
 -- Indexes for table `debriefing_materials`
 --
 ALTER TABLE `debriefing_materials`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `decisions`
+--
+ALTER TABLE `decisions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_decisions_participant` (`participant_id`),
+  ADD KEY `idx_decisions_inject` (`inject_id`);
 
 --
 -- Indexes for table `equipment`
@@ -796,7 +1009,12 @@ ALTER TABLE `equipment_audits`
 -- Indexes for table `events`
 --
 ALTER TABLE `events`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_events_date` (`date`),
+  ADD KEY `idx_events_date_time` (`date`,`time`),
+  ADD KEY `idx_events_type` (`type`),
+  ADD KEY `idx_events_type_status` (`type`,`approval_status`),
+  ADD KEY `idx_events_location` (`location`);
 
 --
 -- Indexes for table `exercise_history`
@@ -809,6 +1027,13 @@ ALTER TABLE `exercise_history`
 --
 ALTER TABLE `feedback`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `feedback_debrief`
+--
+ALTER TABLE `feedback_debrief`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_feedback_participant` (`participant_id`);
 
 --
 -- Indexes for table `final_scores`
@@ -881,6 +1106,13 @@ ALTER TABLE `participant_scores`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `registrations`
+--
+ALTER TABLE `registrations`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_registration` (`participant_id`,`event_id`);
+
+--
 -- Indexes for table `reports`
 --
 ALTER TABLE `reports`
@@ -897,7 +1129,8 @@ ALTER TABLE `responses`
 -- Indexes for table `role_assignments`
 --
 ALTER TABLE `role_assignments`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `ux_role_participant` (`participant_id`);
 
 --
 -- Indexes for table `safety_procedures`
@@ -923,7 +1156,9 @@ ALTER TABLE `scenarios`
 --
 ALTER TABLE `scores`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_criteria_id` (`criteria_id`);
+  ADD KEY `idx_criteria_id` (`criteria_id`),
+  ADD KEY `idx_scores_participant` (`participant_name`),
+  ADD KEY `idx_scores_criteria` (`criteria_id`);
 
 --
 -- Indexes for table `staff`
@@ -1011,6 +1246,12 @@ ALTER TABLE `criteria`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `criteria_scores`
+--
+ALTER TABLE `criteria_scores`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `damage_investigations`
 --
 ALTER TABLE `damage_investigations`
@@ -1035,9 +1276,21 @@ ALTER TABLE `data_entries`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `debriefings`
+--
+ALTER TABLE `debriefings`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `debriefing_materials`
 --
 ALTER TABLE `debriefing_materials`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `decisions`
+--
+ALTER TABLE `decisions`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -1053,12 +1306,6 @@ ALTER TABLE `equipment_audits`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `events`
---
-ALTER TABLE `events`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `exercise_history`
 --
 ALTER TABLE `exercise_history`
@@ -1068,6 +1315,12 @@ ALTER TABLE `exercise_history`
 -- AUTO_INCREMENT for table `feedback`
 --
 ALTER TABLE `feedback`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `feedback_debrief`
+--
+ALTER TABLE `feedback_debrief`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -1119,12 +1372,6 @@ ALTER TABLE `notifications`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `participants`
---
-ALTER TABLE `participants`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `participant_feedback`
 --
 ALTER TABLE `participant_feedback`
@@ -1134,6 +1381,12 @@ ALTER TABLE `participant_feedback`
 -- AUTO_INCREMENT for table `participant_scores`
 --
 ALTER TABLE `participant_scores`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `registrations`
+--
+ALTER TABLE `registrations`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -1211,6 +1464,16 @@ ALTER TABLE `variables`
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `attendance`
+--
+ALTER TABLE `attendance`
+  ADD CONSTRAINT `fk_attendance_event` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_attendance_event_v2` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_attendance_participant` FOREIGN KEY (`participant_id`) REFERENCES `participants` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_attendance_participant_v2` FOREIGN KEY (`participant_id`) REFERENCES `participants` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_attendance_participant_v3` FOREIGN KEY (`participant_id`) REFERENCES `participants` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Constraints for table `attendance_participants`
