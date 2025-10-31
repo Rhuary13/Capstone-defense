@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 31, 2025 at 12:05 AM
+-- Generation Time: Oct 31, 2025 at 01:51 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -161,8 +161,18 @@ CREATE TABLE `drills` (
   `title` varchar(255) NOT NULL,
   `date` date NOT NULL,
   `details` text NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `type` varchar(100) NOT NULL DEFAULT 'Drill',
+  `file_path` varchar(512) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `drills`
+--
+
+INSERT INTO `drills` (`id`, `title`, `date`, `details`, `created_at`, `type`, `file_path`) VALUES
+(1, 'Community Evacuation drill', '2025-11-01', 'A Community Evacuation Drill is a planned exercise that helps residents and local responders practice how to move safely and efficiently from hazardous areas to designated safe zones during disasters such as earthquakes, floods, fires, or typhoons.\r\nIt ensures that all members of the community understand what actions to take and how to coordinate with emergency personnel during an actual event.', '2025-10-30 23:59:49', 'Flood', NULL),
+(2, 'Earthquake Drill', '2025-11-01', 'This lesson introduces earthquake hazards, safety procedures, and community coordination during seismic events. It emphasizes practical skills through simulation exercises designed to save lives, reduce injuries, and ensure order during real earthquakes.', '2025-10-31 00:10:04', 'Flood', 'C:\\xampp\\htdocs\\Capstone-defense\\admin\\module1/uploads/drills/1761869404_Earthquake_Drill.pdf');
 
 -- --------------------------------------------------------
 
@@ -282,7 +292,8 @@ CREATE TABLE `quizzes` (
   `option_c` varchar(255) DEFAULT NULL,
   `option_d` varchar(255) DEFAULT NULL,
   `correct_option` char(1) NOT NULL,
-  `created_at` datetime DEFAULT current_timestamp()
+  `created_at` datetime DEFAULT current_timestamp(),
+  `title` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -572,7 +583,8 @@ ALTER TABLE `lessons`
 -- Indexes for table `notifications`
 --
 ALTER TABLE `notifications`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_notifications_recipient` (`recipient_type`);
 
 --
 -- Indexes for table `participants`
@@ -682,7 +694,8 @@ ALTER TABLE `training_completion`
 --
 ALTER TABLE `training_modules`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `fk_training_modules_prerequisite` (`prerequisite_id`);
+  ADD KEY `fk_training_modules_prerequisite` (`prerequisite_id`),
+  ADD KEY `idx_training_modules_disaster` (`disaster_type`);
 
 --
 -- Indexes for table `training_programs`
@@ -729,7 +742,7 @@ ALTER TABLE `attendance`
 -- AUTO_INCREMENT for table `drills`
 --
 ALTER TABLE `drills`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `lessons`

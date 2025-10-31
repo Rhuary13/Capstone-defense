@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 31, 2025 at 12:05 AM
+-- Generation Time: Oct 31, 2025 at 01:51 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -289,7 +289,11 @@ CREATE TABLE `damage_reports` (
   `item_name` varchar(255) NOT NULL,
   `damage_type` varchar(100) DEFAULT NULL,
   `incident_date` datetime DEFAULT NULL,
-  `description` text DEFAULT NULL
+  `description` text DEFAULT NULL,
+  `staff_name` varchar(255) NOT NULL,
+  `severity` enum('Low','Medium','High','Critical') DEFAULT 'Low',
+  `reported_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `status` enum('Pending','Investigating','Closed') DEFAULT 'Pending'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -957,7 +961,8 @@ ALTER TABLE `damage_investigations`
 --
 ALTER TABLE `damage_reports`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `fk_damage_equipment` (`equipment_id`);
+  ADD KEY `fk_damage_equipment` (`equipment_id`),
+  ADD KEY `idx_damage_equipment` (`equipment_id`);
 
 --
 -- Indexes for table `data_criteria`

@@ -34,7 +34,7 @@
         <ul x-show="open" x-transition
             class="ml-8 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm">
           <li><a href="/Capstone-defense/admin/module1/module1.1.php" class="block px-2 py-2 rounded hover:bg-blue-500">Module Creation</a></li>
-          <li><a href="/Capstone-defense/admin/module1/module1.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Content Structuring</a></li>
+          <li><a href="/Capstone-defense/admin/module1/module1.2.php" class="block px-2 py-2 rounded hover:bg-blue-500">Training</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.3.php" class="block px-2 py-2 rounded hover:bg-blue-500">Scheduling</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.4.php" class="block px-2 py-2 rounded hover:bg-blue-500">Records</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.5.php" class="block px-2 py-2 rounded hover:bg-blue-500">Assessment & Evaluation</a></li>
