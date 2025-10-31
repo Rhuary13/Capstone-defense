@@ -210,7 +210,7 @@ $types = $typeRes ? array_filter(array_map(function($r){ return $r['type'];}, $t
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Module 1.3 — Training & Scheduled Lessons (Admin)</title>
+  <title>Training & Scheduled Lessons (Admin)</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -240,7 +240,7 @@ $types = $typeRes ? array_filter(array_map(function($r){ return $r['type'];}, $t
       <!-- Topbar -->
       <header class="bg-white border-b h-16 flex items-center justify-between px-6">
         <div>
-          <h1 class="text-lg font-semibold text-slate-800">Module 1.3 — Training & Lessons</h1>
+          <h1 class="text-lg font-semibold text-slate-800">Training & Lessons</h1>
           <div class="text-sm text-slate-500">Build lessons, schedule training deadlines, and publish to participants/staff</div>
         </div>
         <div class="flex items-center gap-3">
