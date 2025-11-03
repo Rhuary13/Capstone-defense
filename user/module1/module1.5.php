@@ -15,12 +15,12 @@ if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 // =========================
 // Security check
 // =========================
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['id'])) {
     header("Location: ../auth/login.php");
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$id = $_SESSION['id'];
 
 // =========================
 // Get total modules
@@ -35,7 +35,7 @@ $totalModules      = $totalModulesRow['total'] ?? 0;
 $completedQuery = $conn->prepare("SELECT COUNT(DISTINCT lesson_id) AS completed 
                                   FROM quiz_results 
                                   WHERE participant_id = ? AND status = 'Passed'");
-$completedQuery->bind_param("i", $user_id);
+$completedQuery->bind_param("i", $id);
 $completedQuery->execute();
 $completedResult = $completedQuery->get_result()->fetch_assoc();
 $completedModules = $completedResult['completed'] ?? 0;
@@ -57,7 +57,7 @@ if ($completedModules < $totalModules) {
         ORDER BY id ASC 
         LIMIT 1
     ");
-    $nextModuleQuery->bind_param("i", $user_id);
+    $nextModuleQuery->bind_param("i", $id);
     $nextModuleQuery->execute();
     $nextModuleResult = $nextModuleQuery->get_result()->fetch_assoc();
     if ($nextModuleResult) {

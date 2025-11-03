@@ -1,848 +1,754 @@
 <?php
-// content_structuring.php
-// Admin UI — Content Structuring (single file)
-// Updated to implement Review, inline Edit, Open Quiz, and Open Attachment functionality.
+// module1.2_topic_categorization.php
+// Topic Categorization — Admin (single file)
+// Database: training_management
 
 session_start();
 
-// ------------------ DB connect ------------------
+/* ---------------------------
+   CONFIG
+   --------------------------- */
 $DB_HOST = 'localhost';
 $DB_USER = 'root';
 $DB_PASS = '';
 $DB_NAME = 'training_management';
 
-$conn = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
-if ($conn->connect_error) {
-    die('DB connect error: ' . htmlspecialchars($conn->connect_error));
-}
-
-// ------------------ Admin check ------------------
+/* ---------------------------
+   Require admin
+   --------------------------- */
 if (!isset($_SESSION['id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header('Location: ../auth/login.php');
     exit;
 }
 
-// ------------------ CSRF ------------------
+/* ---------------------------
+   DB CONNECT
+   --------------------------- */
+$conn = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
+if ($conn->connect_error) {
+    die('DB connect error: ' . htmlspecialchars($conn->connect_error));
+}
+$conn->set_charset('utf8mb4');
+
+/* ---------------------------
+   CSRF token
+   --------------------------- */
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $CSRF = $_SESSION['csrf_token'];
 
-// ------------------ Ensure tables exist (safe) ------------------
+/* ---------------------------
+   Ensure required tables exist
+   --------------------------- */
 $conn->query("
-CREATE TABLE IF NOT EXISTS `lessons` (
+CREATE TABLE IF NOT EXISTS `topic_categories` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `title` VARCHAR(255) NOT NULL,
-  `disaster_type` VARCHAR(100) DEFAULT NULL,
-  `content` TEXT NOT NULL,
-  `scheduled_date` DATE DEFAULT NULL,
-  `file_path` VARCHAR(512) DEFAULT NULL,
-  `published` TINYINT(1) DEFAULT 1,
+  `name` VARCHAR(191) NOT NULL UNIQUE,
+  `slug` VARCHAR(191) NOT NULL UNIQUE,
+  `description` TEXT DEFAULT NULL,
+  `visibility` ENUM('public','private') DEFAULT 'public',
   `created_by` INT DEFAULT NULL,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ");
 
 $conn->query("
-CREATE TABLE IF NOT EXISTS `quizzes` (
+CREATE TABLE IF NOT EXISTS `module_categories` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `lesson_id` INT NOT NULL,
-  `title` VARCHAR(255) NOT NULL,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_quiz_lesson FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
+  `module_table` VARCHAR(100) NOT NULL,
+  `module_id` INT NOT NULL,
+  `category_id` INT NOT NULL,
+  `assigned_by` INT DEFAULT NULL,
+  `assigned_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_module_cat (module_table, module_id, category_id),
+  CONSTRAINT fk_module_categories_category FOREIGN KEY (category_id) REFERENCES topic_categories(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ");
 
-$conn->query("
-CREATE TABLE IF NOT EXISTS `quiz_questions` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `quiz_id` INT NOT NULL,
-  `question` TEXT NOT NULL,
-  `option_a` VARCHAR(255) DEFAULT NULL,
-  `option_b` VARCHAR(255) DEFAULT NULL,
-  `option_c` VARCHAR(255) DEFAULT NULL,
-  `option_d` VARCHAR(255) DEFAULT NULL,
-  `correct_option` CHAR(1) DEFAULT NULL,
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_q_q FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-");
+/* ---------------------------
+   Add optional category_id columns (non-destructive)
+   --------------------------- */
+function ensure_column($conn, $table, $column_sql, $column_name) {
+    $safeTable = $conn->real_escape_string($table);
+    $res = $conn->query("SHOW TABLES LIKE '{$safeTable}'");
+    if (!$res || $res->num_rows === 0) return;
+    $safeColumn = $conn->real_escape_string($column_name);
+    $colRes = $conn->query("SHOW COLUMNS FROM `{$safeTable}` LIKE '{$safeColumn}'");
+    if ($colRes && $colRes->num_rows === 0) {
+        $conn->query("ALTER TABLE `{$safeTable}` ADD COLUMN {$column_sql}");
+    }
+}
+ensure_column($conn, 'training_modules', "category_id INT DEFAULT NULL", 'category_id');
+ensure_column($conn, 'lessons', "category_id INT DEFAULT NULL", 'category_id');
 
-$conn->query("
-CREATE TABLE IF NOT EXISTS `module_postings` (
-  `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `lesson_id` INT NOT NULL,
-  `target` ENUM('participants','staff','all') NOT NULL DEFAULT 'all',
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_posting_lesson FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-");
-
-// ------------------ Helpers ------------------
+/* ---------------------------
+   Helpers
+   --------------------------- */
 function esc($s){ return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
-function full_file_url($path) {
-    // If path is empty, return null. If path is already absolute (http), return as-is.
-    if (!$path) return null;
-    if (preg_match('#^https?://#i', $path)) return $path;
-    // make sure path starts with slash
-    if ($path[0] !== '/') $path = '/' . $path;
-    $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
-    return $proto . $_SERVER['HTTP_HOST'] . $path;
+function slugify($s){
+    $s = preg_replace('/[^\p{L}\p{N}\-]+/u','-', mb_strtolower(trim($s)));
+    $s = preg_replace('/-+/','-',$s);
+    return trim($s,'-');
 }
 
-// upload dir
-$uploadDir = __DIR__ . '/uploads/lessons/';
-if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
-
-// ------------------ Messages ------------------
-$errors = [];
-$success = '';
-
-// ------------------ Actions: update lesson (AJAX) ------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_lesson') {
-    // AJAX inline update
+/* ---------------------------
+   AJAX endpoint handlers
+   --------------------------- */
+if (isset($_REQUEST['action'])) {
     header('Content-Type: application/json; charset=utf-8');
-    $resp = ['ok' => false, 'errors' => []];
-    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $resp['errors'][] = 'Invalid CSRF token.';
-        echo json_encode($resp); exit;
-    }
-    $id = (int)($_POST['id'] ?? 0);
-    if ($id <= 0) { $resp['errors'][] = 'Invalid lesson ID.'; echo json_encode($resp); exit; }
-    $title = trim($_POST['title'] ?? '');
-    $disaster_type = trim($_POST['disaster_type'] ?? '') ?: null;
-    $content = trim($_POST['content'] ?? '');
-    $scheduled_date = trim($_POST['scheduled_date'] ?? '') ?: null;
-    $target = in_array($_POST['target'] ?? 'all', ['participants','staff','all']) ? $_POST['target'] : 'all';
+    $action = $_REQUEST['action'];
 
-    if ($title === '') $resp['errors'][] = 'Title required';
-    if ($content === '') $resp['errors'][] = 'Content required';
-    if (!empty($resp['errors'])) { echo json_encode($resp); exit; }
-
-    // handle optional file replacement (if provided)
-    if (!empty($_FILES['file']['name']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
-        $name = preg_replace('/[^A-Za-z0-9.\-_]/','_', basename($_FILES['file']['name']));
-        $targetFile = $uploadDir . time() . '_' . $name;
-        if (!move_uploaded_file($_FILES['file']['tmp_name'], $targetFile)) {
-            $resp['errors'][] = 'Failed to save uploaded file.';
-            echo json_encode($resp); exit;
-        }
-        $filePath = str_replace($_SERVER['DOCUMENT_ROOT'], '', $targetFile);
-        $stmt = $conn->prepare("UPDATE lessons SET title=?, disaster_type=?, content=?, scheduled_date=?, file_path=? WHERE id=?");
-        $stmt->bind_param('sssssi', $title, $disaster_type, $content, $scheduled_date, $filePath, $id);
-    } else {
-        $stmt = $conn->prepare("UPDATE lessons SET title=?, disaster_type=?, content=?, scheduled_date=? WHERE id=?");
-        $stmt->bind_param('ssssi', $title, $disaster_type, $content, $scheduled_date, $id);
-    }
-
-    if ($stmt->execute()) {
-        // update module_postings target if provided
-        $up = $conn->prepare("UPDATE module_postings SET target=? WHERE lesson_id=?");
-        $up->bind_param('si', $target, $id);
-        $up->execute();
-        $up->close();
-
-        $resp['ok'] = true;
-        $resp['message'] = 'Lesson updated.';
-    } else {
-        $resp['errors'][] = 'Update failed: ' . $stmt->error;
-    }
-    $stmt->close();
-    echo json_encode($resp); exit;
-}
-
-// ------------------ Actions: update quiz question (AJAX) ------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_question') {
-    header('Content-Type: application/json; charset=utf-8');
-    $resp = ['ok'=>false, 'errors'=>[]];
-    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $resp['errors'][] = 'Invalid CSRF token.'; echo json_encode($resp); exit;
-    }
-    $qid = (int)($_POST['question_id'] ?? 0);
-    $question = trim($_POST['question'] ?? '');
-    $a = trim($_POST['option_a'] ?? ''); $b = trim($_POST['option_b'] ?? ''); $c = trim($_POST['option_c'] ?? ''); $d = trim($_POST['option_d'] ?? '');
-    $corr = strtoupper(trim($_POST['correct_option'] ?? ''));
-    if ($qid <= 0) { $resp['errors'][] = 'Invalid question id'; echo json_encode($resp); exit; }
-    if ($question === '') { $resp['errors'][] = 'Question required'; echo json_encode($resp); exit; }
-    if (!in_array($corr, ['A','B','C','D',''])) $corr = null;
-    $stmt = $conn->prepare("UPDATE quiz_questions SET question=?, option_a=?, option_b=?, option_c=?, option_d=?, correct_option=? WHERE id=?");
-    $stmt->bind_param('ssssssi', $question, $a, $b, $c, $d, $corr, $qid);
-    if ($stmt->execute()) { $resp['ok'] = true; $resp['message'] = 'Question updated.'; } else { $resp['errors'][] = $stmt->error; }
-    $stmt->close();
-    echo json_encode($resp); exit;
-}
-
-// ------------------ POST: create lesson (auto-create quiz + posting) ------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_lesson']) && !isset($_POST['action'])) {
-    if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $errors[] = 'Invalid CSRF token.';
-    } else {
-        $title = trim($_POST['title'] ?? '');
-        $disaster_type = trim($_POST['disaster_type'] ?? '') ?: null;
-        $content = trim($_POST['content'] ?? '');
-        $scheduled_date = trim($_POST['scheduled_date'] ?? '') ?: null;
-        $target = in_array($_POST['target'] ?? 'all', ['participants','staff','all']) ? $_POST['target'] : 'all';
-
-        if ($title === '') $errors[] = 'Title is required.';
-        if ($content === '') $errors[] = 'Content is required.';
-
-        // optional file upload
-        $filePath = null;
-        if (!empty($_FILES['file']['name']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
-            $name = preg_replace('/[^A-Za-z0-9.\-_]/','_', basename($_FILES['file']['name']));
-            $targetFile = $uploadDir . time() . '_' . $name;
-            if (move_uploaded_file($_FILES['file']['tmp_name'], $targetFile)) {
-                $filePath = str_replace($_SERVER['DOCUMENT_ROOT'], '', $targetFile);
-            } else {
-                $errors[] = 'Failed to save uploaded file.';
-            }
-        }
-
-        if (empty($errors)) {
-            $stmt = $conn->prepare("INSERT INTO lessons (title, disaster_type, content, scheduled_date, file_path, published, created_by, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, NOW())");
-            $userId = (int)($_SESSION['id'] ?? 0);
-            if ($stmt === false) {
-                $errors[] = 'Prepare failed: ' . $conn->error;
-            } else {
-                $stmt->bind_param('sssssi', $title, $disaster_type, $content, $scheduled_date, $filePath, $userId);
-                if ($stmt->execute()) {
-                    $lesson_id = $stmt->insert_id;
-                    $success = 'Lesson created successfully.';
-
-                    // auto-create quiz row linked to lesson
-                    $qTitle = 'Auto Quiz — ' . $title;
-                    $qstmt = $conn->prepare("INSERT INTO quizzes (lesson_id, title, created_at) VALUES (?, ?, NOW())");
-                    if ($qstmt) {
-                        $qstmt->bind_param('is', $lesson_id, $qTitle);
-                        $qstmt->execute();
-                        $quiz_id = $qstmt->insert_id;
-                        $qstmt->close();
-
-                        // create a placeholder question for the admin to edit
-                        $placeholderQ = 'Placeholder question — edit this question to make it specific to the lesson.';
-                        $optA = 'Option A (edit)'; $optB = 'Option B (edit)'; $optC = 'Option C (edit)'; $optD = 'Option D (edit)';
-                        $pq = $conn->prepare("INSERT INTO quiz_questions (quiz_id, question, option_a, option_b, option_c, option_d, correct_option, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
-                        if ($pq) {
-                            $dummyCorrect = 'A';
-                            $pq->bind_param('issssss', $quiz_id, $placeholderQ, $optA, $optB, $optC, $optD, $dummyCorrect);
-                            $pq->execute();
-                            $pq->close();
-                        }
-                    }
-
-                    // create a module_posting record
-                    $pstmt = $conn->prepare("INSERT INTO module_postings (lesson_id, target, created_at) VALUES (?, ?, NOW())");
-                    if ($pstmt) {
-                        $pstmt->bind_param('is', $lesson_id, $target);
-                        $pstmt->execute();
-                        $pstmt->close();
-                    }
-                } else {
-                    $errors[] = 'DB error (insert lesson): ' . $stmt->error;
-                }
-                $stmt->close();
-            }
-        }
-    }
-}
-
-// ------------------ Delete lesson (with cleanup) ------------------
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    // fetch file
-    $r = $conn->prepare("SELECT file_path FROM lessons WHERE id=? LIMIT 1");
-    $r->bind_param('i', $id);
-    $r->execute();
-    $res = $r->get_result()->fetch_assoc();
-    $r->close();
-    if (!empty($res['file_path'])) {
-        $fp = $_SERVER['DOCUMENT_ROOT'] . $res['file_path'];
-        if (file_exists($fp)) @unlink($fp);
-    }
-    $d = $conn->prepare("DELETE FROM lessons WHERE id=?");
-    $d->bind_param('i', $id);
-    if ($d->execute()) {
-        $success = 'Lesson deleted.';
-    } else {
-        $errors[] = 'Failed to delete lesson.';
-    }
-    $d->close();
-    header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
-    exit;
-}
-
-// ------------------ Fetch lessons for display ------------------
-$lessons_q = $conn->query("SELECT l.*, p.target FROM lessons l LEFT JOIN module_postings p ON p.lesson_id = l.id ORDER BY l.created_at DESC");
-
-// ------------------ AJAX: fetch single lesson (AJAX preview) ------------------
-if (isset($_GET['fetch_lesson']) && is_numeric($_GET['fetch_lesson'])) {
-    $id = (int)$_GET['fetch_lesson'];
-    $stmt = $conn->prepare("SELECT id,title,disaster_type,content,scheduled_date,file_path,created_at FROM lessons WHERE id=? LIMIT 1");
-    $stmt->bind_param('i', $id);
-    $stmt->execute();
-    $data = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    header('Content-Type: application/json');
-    echo json_encode($data ?: []);
-    exit;
-}
-
-// ------------------ AJAX: fetch quiz + questions for lesson ------------------
-if (isset($_GET['fetch_quiz']) && is_numeric($_GET['fetch_quiz'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    $lesson_id = (int)$_GET['fetch_quiz'];
-
-    // ensure lesson exists
-    $chk = $conn->prepare("SELECT id,title FROM lessons WHERE id=? LIMIT 1");
-    $chk->bind_param('i', $lesson_id);
-    $chk->execute();
-    $lesson = $chk->get_result()->fetch_assoc();
-    $chk->close();
-
-    if (!$lesson) {
-        echo json_encode(['error' => 'Lesson not found', 'quiz' => null, 'questions' => []]);
+    // enforce CSRF for POST actions
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!isset($_POST['csrf_token']) || !hash_equals($CSRF, $_POST['csrf_token']))) {
+        echo json_encode(['success'=>false,'error'=>'Invalid CSRF token']);
         exit;
     }
 
-    // try to get existing quiz
-    $q = $conn->prepare("SELECT id,title,created_at FROM quizzes WHERE lesson_id=? LIMIT 1");
-    $q->bind_param('i', $lesson_id);
-    $q->execute();
-    $quiz = $q->get_result()->fetch_assoc();
-    $q->close();
-
-    // if no quiz exists, create one and a placeholder question (so frontend always has something)
-    if (!$quiz) {
-        $qTitle = 'Auto Quiz — ' . ($lesson['title'] ?? 'Lesson');
-        $ins = $conn->prepare("INSERT INTO quizzes (lesson_id, title, created_at) VALUES (?, ?, NOW())");
-        if ($ins === false) {
-            echo json_encode(['error' => 'Failed to create quiz: ' . $conn->error, 'quiz' => null, 'questions' => []]);
-            exit;
+    // create_category
+    if ($action === 'create_category' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $name = trim($_POST['name'] ?? '');
+        $desc = trim($_POST['description'] ?? '');
+        $visibility = in_array($_POST['visibility'] ?? 'public', ['public','private']) ? $_POST['visibility'] : 'public';
+        if ($name === '') { echo json_encode(['success'=>false,'error'=>'Name required']); exit; }
+        $slug = slugify($name);
+        $base = $slug; $i = 1;
+        while (true) {
+            $stmt = $conn->prepare("SELECT id FROM topic_categories WHERE slug = ? LIMIT 1");
+            $stmt->bind_param('s', $slug);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            if ($r->num_rows === 0) { $stmt->close(); break; }
+            $stmt->close();
+            $slug = $base . '-' . $i; $i++;
         }
-        $ins->bind_param('is', $lesson_id, $qTitle);
-        if (!$ins->execute()) {
-            $ins->close();
-            echo json_encode(['error' => 'Failed to create quiz execute: ' . $ins->error, 'quiz' => null, 'questions' => []]);
-            exit;
-        }
-        $quiz_id = $ins->insert_id;
-        $ins->close();
-
-        // create placeholder question
-        $placeholderQ = 'Placeholder question — edit this to match the lesson.';
-        $optA = 'Option A (edit)'; $optB = 'Option B (edit)'; $optC = 'Option C (edit)'; $optD = 'Option D (edit)';
-        $pq = $conn->prepare("INSERT INTO quiz_questions (quiz_id, question, option_a, option_b, option_c, option_d, correct_option, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
-        if ($pq) {
-            $dummyCorrect = 'A';
-            $pq->bind_param('issssss', $quiz_id, $placeholderQ, $optA, $optB, $optC, $optD, $dummyCorrect);
-            $pq->execute();
-            $pq->close();
-        }
-
-        // now fetch the quiz we just created
-        $q = $conn->prepare("SELECT id,title,created_at FROM quizzes WHERE id=? LIMIT 1");
-        $q->bind_param('i', $quiz_id);
-        $q->execute();
-        $quiz = $q->get_result()->fetch_assoc();
-        $q->close();
+        $stmt = $conn->prepare("INSERT INTO topic_categories (name, slug, description, visibility, created_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+        $user = (int)($_SESSION['id'] ?? 0);
+        $stmt->bind_param('sssis', $name, $slug, $desc, $visibility, $user);
+        $ok = $stmt->execute();
+        $id = $stmt->insert_id;
+        $stmt->close();
+        echo json_encode(['success'=>(bool)$ok,'id'=>$id]); exit;
     }
 
-    // fetch questions for the quiz (may be empty)
-    $questions = [];
-    if ($quiz && isset($quiz['id'])) {
-        $qq = $conn->prepare("SELECT id,question,option_a,option_b,option_c,option_d,correct_option FROM quiz_questions WHERE quiz_id=? ORDER BY id ASC");
-        $qq->bind_param('i', $quiz['id']);
-        $qq->execute();
-        $res = $qq->get_result();
-        while ($row = $res->fetch_assoc()) $questions[] = $row;
-        $qq->close();
+    // update_category
+    if ($action === 'update_category' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $desc = trim($_POST['description'] ?? '');
+        $visibility = in_array($_POST['visibility'] ?? 'public', ['public','private']) ? $_POST['visibility'] : 'public';
+        if ($id <= 0 || $name === '') { echo json_encode(['success'=>false,'error'=>'Invalid input']); exit; }
+        $slug = slugify($name);
+        $base = $slug; $i = 1;
+        while (true) {
+            $stmt = $conn->prepare("SELECT id FROM topic_categories WHERE slug = ? AND id <> ? LIMIT 1");
+            $stmt->bind_param('si', $slug, $id);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            if ($r->num_rows === 0) { $stmt->close(); break; }
+            $stmt->close();
+            $slug = $base . '-' . $i; $i++;
+        }
+        $stmt = $conn->prepare("UPDATE topic_categories SET name=?, slug=?, description=?, visibility=?, updated_at=NOW() WHERE id=?");
+        $stmt->bind_param('ssssi', $name, $slug, $desc, $visibility, $id);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success'=>(bool)$ok]); exit;
     }
 
-    echo json_encode(['error' => null, 'quiz' => $quiz, 'questions' => $questions]);
+    // delete_category
+    if ($action === 'delete_category' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) { echo json_encode(['success'=>false,'error'=>'Invalid id']); exit; }
+        $stmt = $conn->prepare("DELETE FROM topic_categories WHERE id=?");
+        $stmt->bind_param('i', $id);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success'=>(bool)$ok]); exit;
+    }
+
+    // list_categories
+    if ($action === 'list_categories') {
+        $res = $conn->query("SELECT id,name,slug,description,visibility,created_at,updated_at,
+            (SELECT COUNT(1) FROM module_categories mc WHERE mc.category_id = topic_categories.id) AS assigned_count
+            FROM topic_categories ORDER BY name ASC");
+        $rows = [];
+        while ($r = $res->fetch_assoc()) $rows[] = $r;
+        echo json_encode(['success'=>true,'data'=>$rows]); exit;
+    }
+
+    // list_modules (for assign modal) - prefer training_modules else lessons
+    if ($action === 'list_modules') {
+        $modules = [];
+        $hasTraining = $conn->query("SHOW TABLES LIKE 'training_modules'")->num_rows ?? 0;
+        if ($hasTraining) {
+            $res = $conn->query("SELECT id, title, disaster_type, created_at FROM training_modules ORDER BY id DESC LIMIT 1000");
+            while ($r = $res->fetch_assoc()) { $r['module_table'] = 'training_modules'; $modules[] = $r; }
+        }
+        $hasLessons = $conn->query("SHOW TABLES LIKE 'lessons'")->num_rows ?? 0;
+        if ($hasLessons) {
+            $res = $conn->query("SELECT id, title, disaster_type, created_at FROM lessons ORDER BY id DESC LIMIT 1000");
+            while ($r = $res->fetch_assoc()) { $r['module_table'] = 'lessons'; $modules[] = $r; }
+        }
+        echo json_encode(['success'=>true,'data'=>$modules]); exit;
+    }
+
+    // assign_modules (POST)
+    if ($action === 'assign_modules' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $category_id = (int)($_POST['category_id'] ?? 0);
+        $module_table = $_POST['module_table'] ?? '';
+        $module_ids = $_POST['module_ids'] ?? [];
+        if (!is_array($module_ids)) $module_ids = [$module_ids];
+        if ($category_id <=0 || !$module_table || empty($module_ids)) { echo json_encode(['success'=>false,'error'=>'Bad input']); exit; }
+        $user = (int)($_SESSION['id'] ?? 0);
+        $stmt = $conn->prepare("INSERT IGNORE INTO module_categories (module_table, module_id, category_id, assigned_by, assigned_at) VALUES (?, ?, ?, ?, NOW())");
+        foreach ($module_ids as $mid) {
+            $mid = (int)$mid; if ($mid <= 0) continue;
+            $stmt->bind_param('siii', $module_table, $mid, $category_id, $user);
+            $stmt->execute();
+        }
+        $stmt->close();
+        echo json_encode(['success'=>true]); exit;
+    }
+
+    // unassign_module (POST)
+    if ($action === 'unassign_module' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) { echo json_encode(['success'=>false,'error'=>'Bad id']); exit; }
+        $stmt = $conn->prepare("DELETE FROM module_categories WHERE id=?");
+        $stmt->bind_param('i', $id);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['success'=>(bool)$ok]); exit;
+    }
+
+    // get_assigned (GET)
+    if ($action === 'get_assigned') {
+        $category_id = (int)($_GET['category_id'] ?? 0);
+        if ($category_id <= 0) { echo json_encode(['success'=>false,'error'=>'Bad id']); exit; }
+        $stmt = $conn->prepare("
+            SELECT mc.id as mapping_id, mc.module_table, mc.module_id, COALESCE(m.title, l.title) AS title, COALESCE(m.disaster_type, l.disaster_type) AS disaster_type, mc.assigned_at
+            FROM module_categories mc
+            LEFT JOIN training_modules m ON (mc.module_table='training_modules' AND mc.module_id = m.id)
+            LEFT JOIN lessons l ON (mc.module_table='lessons' AND mc.module_id = l.id)
+            WHERE mc.category_id = ?
+            ORDER BY mc.assigned_at DESC
+        ");
+        $stmt->bind_param('i', $category_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $rows = [];
+        while ($r = $res->fetch_assoc()) $rows[] = $r;
+        $stmt->close();
+        echo json_encode(['success'=>true,'data'=>$rows]); exit;
+    }
+
+    echo json_encode(['success'=>false,'error'=>'Unknown action']);
     exit;
 }
 
+/* ---------------------------
+   Page render: initial data
+   --------------------------- */
+$totCat = intval($conn->query("SELECT COUNT(*) AS c FROM topic_categories")->fetch_assoc()['c'] ?? 0);
 
+$catRes = $conn->query("
+    SELECT c.id, c.name, c.slug, c.visibility, c.created_at, c.description,
+      (SELECT COUNT(1) FROM module_categories mc WHERE mc.category_id = c.id) AS assigned_count
+    FROM topic_categories c
+    ORDER BY c.name ASC
+");
+
+$cntModules = 0;
+if ($conn->query("SHOW TABLES LIKE 'training_modules'")->num_rows) {
+    $cntModules = intval($conn->query("SELECT COUNT(*) AS c FROM training_modules")->fetch_assoc()['c'] ?? 0);
+} elseif ($conn->query("SHOW TABLES LIKE 'lessons'")->num_rows) {
+    $cntModules = intval($conn->query("SELECT COUNT(*) AS c FROM lessons")->fetch_assoc()['c'] ?? 0);
+}
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Content Structuring — Admin</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Topic Categorization — Admin</title>
+
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide icons + Alpine (for small interactions if needed) -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/alpinejs" defer></script>
+
   <style>
+    /* main independent scrolling */
     html,body{height:100%}
-    .app{display:flex;height:100vh;overflow:hidden;background:#f8fafc}
-    .main-wrap{flex:1;display:flex;flex-direction:column;min-width:0}
-    .main-scroll{flex:1;overflow:auto;min-height:0;padding:1.25rem}
-    .list-scroll{max-height:60vh;overflow:auto;padding-right:8px}
-    .modal-backdrop{background:rgba(2,6,23,0.45)}
-    .truncate{max-width:28rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .list-scroll::-webkit-scrollbar{width:10px}
-    .list-scroll::-webkit-scrollbar-thumb{background-color:rgba(2,6,23,0.06);border-radius:8px}
-    .prose { line-height:1.5; color:#0f172a; }
-    .field-label { font-size:.9rem; color:#334155; }
+    .app-root{display:flex;height:100vh;min-height:0}
+    .main-panel{flex:1;display:flex;flex-direction:column;min-height:0}
+    header.app-header{height:4rem;min-height:4rem}
+    main.scrollable{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:1.5rem}
+    .truncate-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    /* accessible focus */
+    :focus { outline: 3px solid rgba(56,189,248,0.15); outline-offset: 2px; }
   </style>
 </head>
-<body class="font-sans text-slate-800">
+<body class="bg-slate-50 text-slate-800">
 
-<div class="app">
-  <!-- include your sidebar.php as requested -->
-  <?php include '../sidebar.php'; ?>
+  <div class="app-root">
+    <!-- Sidebar (include) -->
+    <?php include '../sidebar.php'; ?>
 
-  <div class="main-wrap">
-    <header class="bg-white border-b px-6 py-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-xl font-semibold">Content Structuring — Admin</h1>
-        <div class="text-sm text-slate-500">Organize lessons and automatically create quizzes for participants.</div>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="text-sm text-slate-700">Signed in as <strong><?= esc($_SESSION['username'] ?? 'Admin') ?></strong></div>
-      </div>
-    </header>
-
-    <main class="main-scroll">
-      <div class="max-w-6xl mx-auto space-y-6">
-
-        <!-- messages -->
-        <?php if (!empty($errors)): ?>
-          <div class="p-3 rounded bg-rose-50 border border-rose-100 text-rose-800">
-            <strong>Errors:</strong>
-            <ul class="mt-1 ml-4"><?php foreach($errors as $er) echo "<li>".esc($er)."</li>"; ?></ul>
+    <!-- Main panel -->
+    <div class="main-panel w-full">
+      <!-- Header (sticky within main panel) -->
+      <header class="app-header bg-white border-b border-slate-200 flex items-center px-6 sticky top-0 z-30">
+        <div class="flex-1">
+          <h1 class="text-lg font-semibold">Topic Categorization</h1>
+          <p class="text-sm text-slate-500">Group lessons and modules by disaster type or training level for easy navigation.</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-slate-600">Role: Admin</div>
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-600 to-sky-500 text-white flex items-center justify-center font-semibold">
+            <?= esc(strtoupper(substr($_SESSION['name'] ?? ($_SESSION['username'] ?? 'AD'),0,2))) ?>
           </div>
-        <?php endif; ?>
-        <?php if ($success): ?>
-          <div class="p-3 rounded bg-emerald-50 border border-emerald-100 text-emerald-800"><?= esc($success) ?></div>
-        <?php endif; ?>
+        </div>
+      </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Create form -->
-          <section class="bg-white p-6 rounded-2xl shadow">
-            <h2 class="text-lg font-semibold mb-2">Create Structured Lesson</h2>
-            <p class="text-sm text-slate-500 mb-4">When saved, a quiz will be automatically created and the lesson posted to modules.</p>
+      <!-- Independent scrollable main -->
+      <main class="scrollable">
+        <div class="max-w-7xl mx-auto">
 
-            <form method="POST" enctype="multipart/form-data" id="createForm">
-              <input type="hidden" name="csrf_token" value="<?= esc($CSRF) ?>">
-              <div class="mb-3">
-                <label class="field-label">Title</label>
-                <input name="title" required class="mt-1 w-full px-3 py-2 border rounded-lg" />
-              </div>
-              <div class="mb-3">
-                <label class="field-label">Disaster Type</label>
-                <select name="disaster_type" class="mt-1 w-full px-3 py-2 border rounded-lg">
-                  <option value="">— Select —</option>
-                  <option>Flood</option><option>Earthquake</option><option>Fire</option><option>Storm</option>
-                  <option>Workshop</option><option>Drill</option>
+          <!-- Controls -->
+          <div class="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
+            <div class="col-span-2">
+              <div class="flex gap-3 items-center">
+                <input id="searchInput" type="search" placeholder="Search categories or modules..." class="w-full md:w-96 px-3 py-2 border rounded-md bg-white text-sm" />
+                <select id="visibilityFilter" class="px-3 py-2 border rounded-md bg-white text-sm">
+                  <option value="">All visibility</option>
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
                 </select>
-              </div>
-              <div class="mb-3">
-                <label class="field-label">Scheduled Date (optional)</label>
-                <input type="date" name="scheduled_date" class="mt-1 px-3 py-2 border rounded-lg w-full" />
-              </div>
-
-              <div class="mb-3">
-                <label class="field-label">Content</label>
-                <textarea name="content" rows="6" class="mt-1 w-full px-3 py-2 border rounded-lg"></textarea>
-              </div>
-
-              <div class="mb-3">
-                <label class="field-label">Attach file (optional)</label>
-                <input type="file" name="file" class="mt-1 w-full" />
-              </div>
-
-              <div class="mb-3">
-                <label class="field-label">Publish target</label>
-                <select name="target" class="mt-1 px-3 py-2 border rounded-lg">
-                  <option value="all">Participants & Staff</option>
-                  <option value="participants">Participants</option>
-                  <option value="staff">Staff</option>
-                </select>
-              </div>
-
-              <div class="flex justify-end gap-2">
-                <button type="reset" class="px-4 py-2 bg-gray-100 rounded-lg">Reset</button>
-                <button type="submit" name="create_lesson" class="px-4 py-2 bg-indigo-600 text-white rounded-lg">Save & Create Quiz</button>
-              </div>
-            </form>
-          </section>
-
-          <!-- Lessons list -->
-          <section class="bg-white p-6 rounded-2xl shadow lg:col-span-2">
-            <div class="flex items-center justify-between mb-4">
-              <div>
-                <h3 class="text-lg font-semibold">Lessons</h3>
-                <div class="text-sm text-slate-500">Click Review to open lesson details, edit inline, open attachment, or open the generated quiz.</div>
-              </div>
-              <div class="flex items-center gap-3">
-                <input id="search" placeholder="Search lessons..." class="px-3 py-2 border rounded-lg" />
-                <button onclick="applySearch()" class="px-3 py-2 bg-sky-600 text-white rounded-lg">Search</button>
+                <button id="searchBtn" class="px-4 py-2 bg-sky-600 text-white rounded-md">Search</button>
+                <div class="text-sm text-slate-500 ml-4">Categories: <strong id="catCount"><?= $totCat ?></strong> • Modules: <strong id="modCount"><?= $cntModules ?></strong></div>
               </div>
             </div>
 
-            <div class="list-scroll grid gap-4" id="lessonsContainer">
-              <?php if ($lessons_q && $lessons_q->num_rows): while ($l = $lessons_q->fetch_assoc()): ?>
-                <div class="p-4 border rounded-lg flex items-start justify-between bg-white">
+            <div class="flex justify-end">
+              <button id="openCreateBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-md flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                New Category
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left: Create / Edit Form -->
+            <section class="lg:col-span-1">
+              <div class="bg-white p-6 rounded-2xl shadow-sm border">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 id="formTitle" class="text-lg font-medium text-slate-800">Create Category</h2>
+                </div>
+
+                <form id="categoryForm" class="space-y-3">
+                  <input type="hidden" name="csrf_token" value="<?= esc($CSRF) ?>">
+                  <input type="hidden" id="catId" name="id" value="">
                   <div>
-                    <a href="javascript:void(0)" class="block text-lg font-semibold text-slate-800 lesson-link" data-id="<?= (int)$l['id'] ?>"><?= esc($l['title']) ?></a>
-                    <div class="text-xs text-slate-500 mt-1">
-                      <?= esc($l['disaster_type'] ?? 'Uncategorized') ?> • Posted: <?= date('M d, Y', strtotime($l['created_at'])) ?>
-                      <?php if (!empty($l['scheduled_date'])): ?> • Scheduled: <?= date('M d, Y', strtotime($l['scheduled_date'])) ?><?php endif; ?>
-                    </div>
-                    <p class="text-sm text-slate-600 mt-2 truncate"><?= esc(substr(strip_tags($l['content']),0,240)) ?><?= (strlen(strip_tags($l['content']))>240? '...' : '') ?></p>
+                    <label class="block text-sm font-medium">Name</label>
+                    <input id="catName" name="name" required class="w-full px-3 py-2 border rounded-md bg-white text-sm" placeholder="e.g. Flood Response — Level 1" />
                   </div>
 
-                  <div class="flex flex-col items-end gap-2">
-                    <div class="text-xs text-slate-500">Target: <strong><?= esc($l['target'] ?? 'all') ?></strong></div>
-                    <div class="flex gap-2">
-                      <button class="px-3 py-1 text-sm bg-slate-50 rounded border review-btn" data-id="<?= (int)$l['id'] ?>">Review</button>
-                      <a href="?delete=<?= (int)$l['id'] ?>" onclick="return confirm('Delete this lesson?')" class="px-3 py-1 text-sm bg-rose-50 rounded border text-rose-700">Delete</a>
-                    </div>
+                  <div>
+                    <label class="block text-sm font-medium">Visibility</label>
+                    <select id="catVisibility" name="visibility" class="w-full px-3 py-2 border rounded-md text-sm">
+                      <option value="public">Public</option>
+                      <option value="private">Private</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium">Description (optional)</label>
+                    <textarea id="catDesc" name="description" rows="3" class="w-full px-3 py-2 border rounded-md text-sm" placeholder="Short description to show on category cards."></textarea>
+                  </div>
+
+                  <div class="flex items-center gap-3">
+                    <button id="saveCatBtn" type="submit" class="px-4 py-2 bg-sky-600 text-white rounded-md">Save Category</button>
+                    <button id="cancelEditBtn" type="button" class="px-3 py-2 bg-gray-100 rounded-md hidden">Cancel Edit</button>
+                  </div>
+
+                  <div class="mt-3 text-xs text-slate-500">
+                    Tip: Include level or phase in the name (e.g., "Earthquake — Awareness") to make categories meaningful to learners.
+                  </div>
+                </form>
+              </div>
+            </section>
+
+            <!-- Right: Categories Grid -->
+            <section class="lg:col-span-2">
+              <div class="bg-white p-4 rounded-2xl shadow-sm border">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 class="text-lg font-medium text-slate-800">Categories</h3>
+                    <p class="text-sm text-slate-500">Manage topic categories, assign multiple modules, and update classifications.</p>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <button id="refreshBtn" class="px-3 py-2 border rounded-md text-sm">Refresh</button>
                   </div>
                 </div>
-              <?php endwhile; else: ?>
-                <div class="p-6 text-center text-slate-500 bg-white rounded-lg">No lessons yet. Use the left panel to create one.</div>
-              <?php endif; ?>
-            </div>
-          </section>
+
+                <div id="categoriesGrid" class="grid gap-4">
+                  <?php while ($c = $catRes->fetch_assoc()): ?>
+                    <div class="p-4 border rounded-lg bg-white flex items-start justify-between">
+                      <div class="w-2/3">
+                        <div class="flex items-center gap-3">
+                          <div class="w-12 h-12 rounded-md bg-slate-100 flex items-center justify-center text-slate-700 font-semibold text-lg"><?= esc(mb_substr($c['name'],0,2)) ?></div>
+                          <div>
+                            <div class="text-md font-semibold"><?= esc($c['name']) ?></div>
+                            <div class="text-xs text-slate-500"><?= esc($c['slug']) ?> • <?= esc($c['visibility']) ?></div>
+                          </div>
+                        </div>
+                        <div class="mt-3 text-sm text-slate-700 truncate-2"><?= esc($c['description'] ?? '') ?></div>
+                      </div>
+
+                      <div class="w-1/3 text-right flex flex-col items-end gap-2">
+                        <div class="text-sm text-slate-500">Assigned: <strong><?= (int)$c['assigned_count'] ?></strong></div>
+
+                        <div class="flex gap-2">
+                          <button class="assignBtn px-3 py-1 text-sm bg-sky-600 text-white rounded-md" data-id="<?= (int)$c['id'] ?>">Assign</button>
+                          <button class="editBtn px-3 py-1 text-sm border rounded-md" data-id="<?= (int)$c['id'] ?>" data-name="<?= esc($c['name']) ?>" data-desc="<?= esc($c['description']) ?>" data-vis="<?= esc($c['visibility']) ?>">Edit</button>
+                          <button class="delBtn px-3 py-1 text-sm bg-rose-50 text-rose-700 rounded-md" data-id="<?= (int)$c['id'] ?>">Delete</button>
+                        </div>
+                      </div>
+                    </div>
+                  <?php endwhile; ?>
+                </div>
+
+                <div class="mt-4 flex items-center justify-between">
+                  <div class="text-sm text-slate-500">Tip: Use the Assign button to map modules to categories for easy filtering on learner-facing pages.</div>
+                  <div class="text-sm text-slate-500">Showing <span id="visibleCats"><?= $totCat ?></span> categories</div>
+                </div>
+              </div>
+            </section>
+          </div>
 
         </div>
-
-      </div>
-    </main>
+      </main>
+    </div>
   </div>
-</div>
 
-<!-- Modal (preview + edit + quiz) -->
-<div id="modal" class="fixed inset-0 hidden items-center justify-center z-50">
-  <div class="modal-backdrop absolute inset-0"></div>
-  <div class="relative bg-white rounded-2xl shadow-lg w-11/12 max-w-4xl z-10 overflow-hidden">
-    <div class="p-4 border-b flex items-center justify-between gap-4">
-      <div>
-        <h3 id="modalTitle" class="text-lg font-semibold">Lesson Preview</h3>
-        <div id="modalSubtitle" class="text-xs text-slate-500"></div>
+  <!-- Assign Modal -->
+  <div id="assignModal" class="fixed inset-0 hidden items-center justify-center z-50 px-4">
+    <div class="absolute inset-0 bg-black/50" onclick="closeAssignModal()"></div>
+    <div class="relative bg-white rounded-lg shadow-xl w-full max-w-4xl z-10 overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b">
+        <h3 id="assignTitle" class="text-lg font-semibold">Assign Modules</h3>
+        <button onclick="closeAssignModal()" class="text-slate-600">Close</button>
       </div>
-      <div class="flex items-center gap-2">
-        <button id="modalClose" class="text-slate-500 hover:text-slate-700">&times;</button>
-      </div>
-    </div>
-
-    <div class="p-4 max-h-[62vh] overflow-auto grid grid-cols-1 lg:grid-cols-3 gap-4" id="modalBody">
-      <!-- Left/main: preview or edit area (col-span 2) -->
-      <div class="lg:col-span-2" id="modalMain">
-        <div id="previewContent" class="prose text-slate-800"></div>
-
-        <!-- Inline edit form (hidden until edit clicked) -->
-        <form id="editForm" class="space-y-3 mt-2 hidden" enctype="multipart/form-data">
-          <input type="hidden" name="action" value="update_lesson" />
-          <input type="hidden" name="id" id="edit_id" value="" />
-          <input type="hidden" name="csrf_token" value="<?= esc($CSRF) ?>">
-          <div>
-            <label class="field-label">Title</label>
-            <input name="title" id="edit_title" class="mt-1 w-full px-3 py-2 border rounded-lg" />
+      <div class="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm font-medium">Search Modules</label>
+          <input id="moduleSearch" class="w-full px-3 py-2 border rounded-md" placeholder="Filter modules by title or type..." />
+          <div class="mt-3 text-sm text-slate-500">Select modules and click "Assign selected".</div>
+          <div class="mt-3 overflow-auto max-h-72 border rounded-md p-2" id="modulesList">
+            <div class="text-sm text-slate-500">Loading modules...</div>
           </div>
-          <div>
-            <label class="field-label">Disaster Type</label>
-            <input name="disaster_type" id="edit_disaster_type" class="mt-1 w-full px-3 py-2 border rounded-lg" />
-          </div>
-          <div>
-            <label class="field-label">Scheduled Date</label>
-            <input type="date" name="scheduled_date" id="edit_scheduled_date" class="mt-1 px-3 py-2 border rounded-lg" />
-          </div>
-          <div>
-            <label class="field-label">Content</label>
-            <textarea name="content" id="edit_content" rows="6" class="mt-1 w-full px-3 py-2 border rounded-lg"></textarea>
-          </div>
-          <div>
-            <label class="field-label">Replace Attachment (optional)</label>
-            <input type="file" name="file" id="edit_file" class="mt-1" />
-            <div id="currentFile" class="text-sm text-slate-500 mt-1"></div>
-          </div>
-          <div>
-            <label class="field-label">Publish target</label>
-            <select name="target" id="edit_target" class="mt-1 px-3 py-2 border rounded-lg">
-              <option value="all">Participants & Staff</option>
-              <option value="participants">Participants</option>
-              <option value="staff">Staff</option>
-            </select>
-          </div>
-
-          <div class="flex justify-end gap-2 mt-2">
-            <button type="button" id="cancelEdit" class="px-3 py-2 bg-gray-100 rounded">Cancel</button>
-            <button type="submit" id="saveEdit" class="px-4 py-2 bg-indigo-600 text-white rounded">Save changes</button>
-          </div>
-        </form>
-
-      </div>
-
-      <!-- Right sidebar: meta + actions -->
-      <aside class="lg:col-span-1 bg-slate-50 p-3 rounded-lg">
-        <div id="metaBlock" class="text-sm text-slate-700 space-y-2">
-          <div><strong>Scheduled:</strong> <span id="metaDate">—</span></div>
-          <div><strong>Type:</strong> <span id="metaType">—</span></div>
-          <div><strong>Created:</strong> <span id="metaCreated">—</span></div>
-          <div><strong>Target:</strong> <span id="metaTarget">—</span></div>
-          <div id="attachmentArea" class="mt-2"></div>
         </div>
 
-        <div class="mt-4 flex flex-col gap-2">
-          <button id="btnEditInline" class="px-3 py-2 bg-slate-100 rounded-lg">Edit Inline</button>
-          <button id="btnOpenQuiz" class="px-3 py-2 bg-indigo-600 text-white rounded-lg">Open Quiz</button>
-          <button id="btnCloseModal" class="px-3 py-2 bg-gray-100 rounded-lg">Close</button>
-        </div>
-      </aside>
-    </div>
+        <div>
+          <label class="text-sm font-medium">Selected for Category</label>
+          <div class="mt-2 p-3 border rounded-md min-h-[6rem]" id="selectedList">
+            <div class="text-sm text-slate-500">No modules selected.</div>
+          </div>
 
-    <!-- Quiz area (hidden/shown when Open Quiz clicked) -->
-    <div id="quizArea" class="p-4 border-t hidden">
-      <h4 class="font-semibold">Quiz — <span id="quizTitle">—</span></h4>
-      <div id="quizQuestions" class="space-y-4 mt-3"></div>
-      <div class="mt-3 flex gap-2 justify-end">
-        <button id="btnCloseQuiz" class="px-3 py-2 bg-gray-100 rounded">Close Quiz</button>
+          <div class="mt-4 flex justify-end gap-2">
+            <button class="px-3 py-2 bg-gray-100 rounded-md" onclick="clearSelection()">Clear</button>
+            <button id="assignSelectedBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-md">Assign selected</button>
+          </div>
+        </div>
       </div>
     </div>
-
   </div>
-</div>
 
 <script>
   lucide.createIcons();
 
-  // Basic search function on list
-  function applySearch() {
-    const q = document.getElementById('search').value.trim().toLowerCase();
-    document.querySelectorAll('#lessonsContainer > div').forEach(el => {
-      const text = el.innerText.toLowerCase();
-      el.style.display = text.includes(q) ? '' : 'none';
-    });
-  }
+  const API = location.pathname;
+  const CSRF = '<?= esc($CSRF) ?>';
 
-  // Modal elements
-  const modal = document.getElementById('modal');
-  const modalTitle = document.getElementById('modalTitle');
-  const modalSubtitle = document.getElementById('modalSubtitle');
-  const previewContent = document.getElementById('previewContent');
-  const metaDate = document.getElementById('metaDate');
-  const metaType = document.getElementById('metaType');
-  const metaCreated = document.getElementById('metaCreated');
-  const metaTarget = document.getElementById('metaTarget');
-  const attachmentArea = document.getElementById('attachmentArea');
-  const modalBody = document.getElementById('modalBody');
+  document.addEventListener('DOMContentLoaded', () => {
+    // elements
+    const form = document.getElementById('categoryForm');
+    const catId = document.getElementById('catId');
+    const catName = document.getElementById('catName');
+    const catDesc = document.getElementById('catDesc');
+    const catVisibility = document.getElementById('catVisibility');
+    const saveBtn = document.getElementById('saveCatBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const openCreateBtn = document.getElementById('openCreateBtn');
+    const categoriesGrid = document.getElementById('categoriesGrid');
+    const refreshBtn = document.getElementById('refreshBtn');
 
-  const editForm = document.getElementById('editForm');
-  const editFormElems = {
-    id: document.getElementById('edit_id'),
-    title: document.getElementById('edit_title'),
-    disaster_type: document.getElementById('edit_disaster_type'),
-    scheduled_date: document.getElementById('edit_scheduled_date'),
-    content: document.getElementById('edit_content'),
-    file: document.getElementById('edit_file'),
-    target: document.getElementById('edit_target'),
-    currentFile: document.getElementById('currentFile')
-  };
-  const btnEditInline = document.getElementById('btnEditInline');
-  const btnOpenQuiz = document.getElementById('btnOpenQuiz');
-  const quizArea = document.getElementById('quizArea');
-  const quizTitleEl = document.getElementById('quizTitle');
-  const quizQuestionsEl = document.getElementById('quizQuestions');
-
-  document.getElementById('modalClose').addEventListener('click', closeModal);
-  document.getElementById('btnCloseModal').addEventListener('click', closeModal);
-
-  function openModalWithData(data) {
-    modalTitle.textContent = data.title || 'Lesson Preview';
-    modalSubtitle.textContent = data.disaster_type ? data.disaster_type : '';
-    previewContent.innerHTML = (data.content || '').replace(/\n/g,'<br>');
-    metaDate.textContent = data.scheduled_date ? new Date(data.scheduled_date).toLocaleDateString() : '—';
-    metaType.textContent = data.disaster_type || '—';
-    metaCreated.textContent = data.created_at ? new Date(data.created_at).toLocaleString() : '—';
-    metaTarget.textContent = data.target || 'all';
-    // attachment
-    attachmentArea.innerHTML = '';
-    if (data.file_path) {
-      // ensure link uses proper host if stored relative
-      let url = data.file_path;
-      if (!/^https?:\/\//i.test(url) && url[0] !== '/') {
-        url = '/' + url;
+    // create/update category
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      saveBtn.disabled = true;
+      const id = catId.value ? catId.value : '';
+      const action = id ? 'update_category' : 'create_category';
+      const fd = new FormData();
+      fd.append('action', action);
+      fd.append('csrf_token', CSRF);
+      if (id) fd.append('id', id);
+      fd.append('name', catName.value.trim());
+      fd.append('description', catDesc.value.trim());
+      fd.append('visibility', catVisibility.value);
+      try {
+        const res = await fetch(API, { method: 'POST', body: fd });
+        const json = await res.json();
+        if (json.success) {
+          resetForm();
+          await loadCategories();
+          alert('Saved.');
+        } else {
+          alert(json.error || 'Save failed.');
+        }
+      } catch (err) {
+        alert('Request failed.');
+      } finally {
+        saveBtn.disabled = false;
       }
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.className = 'text-indigo-600 underline';
-      a.textContent = 'Open attachment';
-      attachmentArea.appendChild(a);
-    }
-
-    // hide edit form, quiz area
-    editForm.classList.add('hidden');
-    quizArea.classList.add('hidden');
-    // populate edit fields for inline edit readiness
-    editFormElems.id.value = data.id || '';
-    editFormElems.title.value = data.title || '';
-    editFormElems.disaster_type.value = data.disaster_type || '';
-    editFormElems.scheduled_date.value = data.scheduled_date || '';
-    editFormElems.content.value = data.content || '';
-    editFormElems.target.value = data.target || 'all';
-    editFormElems.currentFile.innerHTML = data.file_path ? `<a href="${(data.file_path[0]==='/'?data.file_path:('/'+data.file_path))}" target="_blank" class="text-indigo-600">Current attachment</a>` : 'No attachment';
-
-    // store current lesson id on buttons
-    btnOpenQuiz.dataset.lessonId = data.id;
-    btnEditInline.dataset.lessonId = data.id;
-
-    modal.classList.remove('hidden'); modal.classList.add('flex');
-  }
-
-  function closeModal() {
-    modal.classList.remove('flex'); modal.classList.add('hidden');
-  }
-
-  // attach click listeners to review buttons and lesson links
-  document.querySelectorAll('.lesson-link, .review-btn').forEach(btn=>{
-    btn.addEventListener('click', function(){
-      const id = this.dataset.id;
-      fetch('?fetch_lesson=' + encodeURIComponent(id))
-        .then(r => r.json())
-        .then(data => {
-          // augment data with posting target by reading element? We'll fetch it from server via lessons list (we included p.target in initial query).
-          // For simplicity, ensure server returned created_at etc.
-          // Also fetch posting target by making a small request? but list included target in dataset; instead we'll set target='all' if missing
-          if (!data.target) data.target = 'all';
-          openModalWithData(data);
-        })
-        .catch(err => {
-          alert('Failed to load preview.');
-        });
     });
-  });
 
-  // Edit inline toggle
-  btnEditInline.addEventListener('click', function(){
-    // toggle edit form visibility
-    if (editForm.classList.contains('hidden')) {
-      editForm.classList.remove('hidden');
-      previewContent.classList.add('hidden');
-    } else {
-      editForm.classList.add('hidden');
-      previewContent.classList.remove('hidden');
-    }
-  });
-
-  // Cancel edit
-  document.getElementById('cancelEdit').addEventListener('click', function(e){
-    e.preventDefault();
-    editForm.classList.add('hidden');
-    previewContent.classList.remove('hidden');
-  });
-
-  // Save edit via AJAX
-  editForm.addEventListener('submit', function(e){
-    e.preventDefault();
-    const id = editFormElems.id.value;
-    const formData = new FormData(editForm);
-    // append csrf token is already present, action=update_lesson included
-    fetch(window.location.pathname, {
-      method: 'POST',
-      body: formData
-    }).then(r=>r.json()).then(json=>{
-      if (json.ok) {
-        alert(json.message || 'Updated');
-        location.reload(); // simplest: reload so list updates; could update DOM instead
-      } else {
-        alert('Update failed: ' + (json.errors ? json.errors.join('; ') : 'unknown'));
+    // delegate edit/delete/assign
+    categoriesGrid.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('button, a');
+      if (!btn) return;
+      if (btn.classList.contains('editBtn')) {
+        catId.value = btn.dataset.id;
+        catName.value = btn.dataset.name || '';
+        catDesc.value = btn.dataset.desc || '';
+        catVisibility.value = btn.dataset.vis || 'public';
+        document.getElementById('formTitle').textContent = 'Edit Category';
+        cancelEditBtn.classList.remove('hidden');
+        saveBtn.textContent = 'Update Category';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (btn.classList.contains('delBtn')) {
+        const id = btn.dataset.id;
+        if (!confirm('Delete this category? This will remove assignments but not modules.')) return;
+        const fd = new FormData(); fd.append('action','delete_category'); fd.append('csrf_token', CSRF); fd.append('id', id);
+        fetch(API, { method:'POST', body: fd }).then(r=>r.json()).then(j=>{ if (j.success) loadCategories(); else alert(j.error||'Delete failed'); });
+      } else if (btn.classList.contains('assignBtn')) {
+        const id = btn.dataset.id;
+        openAssignModal(id);
       }
-    }).catch(err=>{
-      alert('Update request failed.');
     });
-  });
 
-  // Open Quiz (fetch and show)
-  btnOpenQuiz.addEventListener('click', function(){
-    const lessonId = this.dataset.lessonId;
-    if (!lessonId) return alert('Lesson id missing');
-    fetch('?fetch_quiz=' + encodeURIComponent(lessonId))
-      .then(r => r.json())
-      .then(payload => {
-        if (!payload.quiz) return alert('No quiz found for this lesson.');
-        // show quiz area and populate
-        quizTitleEl.textContent = payload.quiz.title || 'Quiz';
-        quizQuestionsEl.innerHTML = '';
-        payload.questions.forEach(q => {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'p-3 border rounded-lg bg-white';
-          wrapper.innerHTML = `
-            <div class="text-sm font-medium mb-2">Q: <input data-qid="${q.id}" class="w-full border px-2 py-1" value="${escapeHtml(q.question)}" /></div>
-            <div class="grid gap-2">
-              <input data-qid="${q.id}" data-field="option_a" class="border px-2 py-1" value="${escapeHtml(q.option_a||'')}" />
-              <input data-qid="${q.id}" data-field="option_b" class="border px-2 py-1" value="${escapeHtml(q.option_b||'')}" />
-              <input data-qid="${q.id}" data-field="option_c" class="border px-2 py-1" value="${escapeHtml(q.option_c||'')}" />
-              <input data-qid="${q.id}" data-field="option_d" class="border px-2 py-1" value="${escapeHtml(q.option_d||'')}" />
-              <div class="flex items-center gap-2 mt-2">
-                <label class="text-xs">Correct:</label>
-                <select data-qid="${q.id}" data-field="correct_option" class="border px-2 py-1">
-                  <option value="">—</option>
-                  <option value="A"${q.correct_option==='A'?' selected':''}>A</option>
-                  <option value="B"${q.correct_option==='B'?' selected':''}>B</option>
-                  <option value="C"${q.correct_option==='C'?' selected':''}>C</option>
-                  <option value="D"${q.correct_option==='D'?' selected':''}>D</option>
-                </select>
-                <button data-qid="${q.id}" class="save-question px-2 py-1 bg-sky-600 text-white rounded ml-auto">Save</button>
+    cancelEditBtn.addEventListener('click', (e) => { e.preventDefault(); resetForm(); });
+
+    openCreateBtn.addEventListener('click', (e) => { resetForm(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+
+    refreshBtn.addEventListener('click', () => loadCategories());
+    document.getElementById('searchBtn').addEventListener('click', () => loadCategories());
+
+    // load categories (AJAX)
+    async function loadCategories() {
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      const vis = document.getElementById('visibilityFilter').value;
+      const r = await fetch(API + '?action=list_categories');
+      const j = await r.json();
+      if (!j.success) { alert('Failed to load categories'); return; }
+      const data = j.data || [];
+      const grid = document.getElementById('categoriesGrid');
+      grid.innerHTML = '';
+      const filtered = data.filter(c => {
+        const s = (c.name + ' ' + (c.description||'') + ' ' + (c.visibility||'')).toLowerCase();
+        if (q && !s.includes(q)) return false;
+        if (vis && c.visibility !== vis) return false;
+        return true;
+      });
+      document.getElementById('visibleCats').textContent = filtered.length;
+      filtered.forEach(c => {
+        const node = document.createElement('div');
+        node.className = 'p-4 border rounded-lg bg-white flex items-start justify-between';
+        node.innerHTML = `
+          <div class="w-2/3">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-md bg-slate-100 flex items-center justify-center text-slate-700 font-semibold text-lg">${escapeHtml(c.name.slice(0,2))}</div>
+              <div>
+                <div class="text-md font-semibold">${escapeHtml(c.name)}</div>
+                <div class="text-xs text-slate-500">${escapeHtml(c.slug)} • ${escapeHtml(c.visibility)}</div>
               </div>
             </div>
-          `;
-          quizQuestionsEl.appendChild(wrapper);
-        });
-        quizArea.classList.remove('hidden');
-        // scroll modal to show quiz
-        quizArea.scrollIntoView({behavior:'smooth'});
-        // attach save handlers
-        document.querySelectorAll('.save-question').forEach(btn=>{
-          btn.addEventListener('click', function(){
-            const qid = this.dataset.qid;
-            // find inputs
-            const qInput = document.querySelector(`input[data-qid="${qid}"]`);
-            const opts = {};
-            ['option_a','option_b','option_c','option_d'].forEach((f,i)=>{
-              const el = document.querySelector(`input[data-qid="${qid}"][data-field="${f}"]`);
-              // if not found search within wrapper via data-field attr
-              if (el) opts[f] = el.value;
-              else {
-                const alt = document.querySelector(`[data-qid="${qid}"][data-field="${f}"]`);
-                opts[f] = alt ? alt.value : '';
-              }
-            });
-            const qTextEl = document.querySelector(`input[data-qid="${qid}"]`);
-            const qText = qTextEl ? qTextEl.value : '';
-            const corr = document.querySelector(`select[data-qid="${qid}"][data-field="correct_option"]`).value;
-            // send AJAX to update_question
-            const fd = new FormData();
-            fd.append('action','update_question');
-            fd.append('csrf_token','<?= esc($CSRF) ?>');
-            fd.append('question_id', qid);
-            fd.append('question', qText);
-            fd.append('option_a', opts.option_a || '');
-            fd.append('option_b', opts.option_b || '');
-            fd.append('option_c', opts.option_c || '');
-            fd.append('option_d', opts.option_d || '');
-            fd.append('correct_option', corr || '');
-            fetch(window.location.pathname, { method: 'POST', body: fd })
-              .then(r=>r.json()).then(j=>{
-                if (j.ok) { alert('Question saved'); } else { alert('Save failed: ' + (j.errors? j.errors.join('; ') : '')) }
-              }).catch(()=> alert('Save request failed'));
-          });
-        });
-      }).catch(err=> { alert('Failed to load quiz'); });
+            <div class="mt-3 text-sm text-slate-700 truncate-2">${escapeHtml(c.description || '')}</div>
+          </div>
+          <div class="w-1/3 text-right flex flex-col items-end gap-2">
+            <div class="text-sm text-slate-500">Assigned: <strong>${escapeHtml(c.assigned_count || 0)}</strong></div>
+            <div class="flex gap-2">
+              <button class="assignBtn px-3 py-1 text-sm bg-sky-600 text-white rounded-md" data-id="${c.id}">Assign</button>
+              <button class="editBtn px-3 py-1 text-sm border rounded-md" data-id="${c.id}" data-name="${escapeHtml(c.name)}" data-desc="${escapeHtml(c.description)}" data-vis="${escapeHtml(c.visibility)}">Edit</button>
+              <button class="delBtn px-3 py-1 text-sm bg-rose-50 text-rose-700 rounded-md" data-id="${c.id}">Delete</button>
+            </div>
+          </div>`;
+        grid.appendChild(node);
+      });
+    }
+
+    function resetForm(){
+      catId.value = '';
+      catName.value = '';
+      catDesc.value = '';
+      catVisibility.value = 'public';
+      document.getElementById('formTitle').textContent = 'Create Category';
+      cancelEditBtn.classList.add('hidden');
+      saveBtn.textContent = 'Save Category';
+    }
+
+    function escapeHtml(s=''){ return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+    /* -------- Assign modal logic -------- */
+    let currentCategoryForAssign = null;
+    let modulesCache = [];
+    let selectedModules = new Map();
+
+    async function openAssignModal(categoryId){
+      currentCategoryForAssign = categoryId;
+      document.getElementById('assignTitle').textContent = 'Assign Modules — Category #' + categoryId;
+      const modal = document.getElementById('assignModal');
+      modal.classList.remove('hidden'); modal.classList.add('flex');
+      await loadModules();
+      await loadAssigned(categoryId);
+    }
+    window.openAssignModal = openAssignModal;
+
+    function closeAssignModal(){
+      document.getElementById('assignModal').classList.add('hidden');
+      document.getElementById('assignModal').classList.remove('flex');
+      modulesCache = []; selectedModules.clear();
+      document.getElementById('modulesList').innerHTML = '';
+      document.getElementById('selectedList').innerHTML = '<div class="text-sm text-slate-500">No modules selected.</div>';
+    }
+    window.closeAssignModal = closeAssignModal;
+
+    async function loadModules(){
+      const modulesListEl = document.getElementById('modulesList');
+      modulesListEl.innerHTML = '<div class="text-sm text-slate-500">Loading modules...</div>';
+      const res = await fetch(API + '?action=list_modules');
+      const json = await res.json();
+      if (!json.success) { modulesListEl.innerHTML = '<div class="text-sm text-rose-600">Failed to load modules.</div>'; return; }
+      modulesCache = json.data || [];
+      renderModules(modulesCache);
+      document.getElementById('moduleSearch').addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        const filtered = modulesCache.filter(m => (m.title + ' ' + (m.disaster_type||'')).toLowerCase().includes(q));
+        renderModules(filtered);
+      });
+    }
+
+    function renderModules(list){
+      const el = document.getElementById('modulesList');
+      if (!list.length) { el.innerHTML = '<div class="text-sm text-slate-500">No modules found.</div>'; return; }
+      el.innerHTML = '';
+      list.forEach(m => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2 p-2 hover:bg-slate-50 rounded';
+        row.innerHTML = `
+          <div>
+            <div class="font-medium">${escapeHtml(m.title)}</div>
+            <div class="text-xs text-slate-500">${escapeHtml(m.disaster_type||'')} • <span class="text-xs text-slate-400">${escapeHtml(m.module_table||'')}</span></div>
+          </div>
+          <div>
+            <input type="checkbox" data-id="${m.id}" data-table="${escapeHtml(m.module_table)}" class="moduleCheckbox" ${selectedModules.has((m.module_table||'')+'|'+m.id)?'checked':''} />
+          </div>
+        `;
+        el.appendChild(row);
+      });
+      // attach change handlers
+      el.querySelectorAll('.moduleCheckbox').forEach(cb => cb.addEventListener('change', (ev) => {
+        const id = ev.target.dataset.id; const table = ev.target.dataset.table;
+        const key = table + '|' + id;
+        if (ev.target.checked) {
+          const meta = modulesCache.find(x => String(x.id) === String(id) && x.module_table === table) || {};
+          selectedModules.set(key, { module_table: table, module_id: id, title: meta.title || ('#'+id) });
+        } else {
+          selectedModules.delete(key);
+        }
+        renderSelected();
+      }));
+    }
+
+    function renderSelected(){
+      const sel = document.getElementById('selectedList');
+      if (!selectedModules.size) { sel.innerHTML = '<div class="text-sm text-slate-500">No modules selected.</div>'; return; }
+      sel.innerHTML = '';
+      Array.from(selectedModules.values()).forEach(m => {
+        const d = document.createElement('div');
+        d.className = 'flex items-center justify-between gap-2 py-1';
+        d.innerHTML = `<div class="text-sm">${escapeHtml(m.title)} <div class="text-xs text-slate-400">${escapeHtml(m.module_table)}</div></div>
+                       <button class="text-xs text-rose-600 removeSelBtn" data-key="${m.module_table}|${m.module_id}">Remove</button>`;
+        sel.appendChild(d);
+      });
+      sel.querySelectorAll('.removeSelBtn').forEach(b => b.addEventListener('click', (ev) => {
+        const k = ev.target.dataset.key; selectedModules.delete(k);
+        const [table, id] = k.split('|');
+        const cb = document.querySelector(`.moduleCheckbox[data-id="${id}"][data-table="${table}"]`);
+        if (cb) cb.checked = false;
+        renderSelected();
+      }));
+    }
+
+    document.getElementById('assignSelectedBtn').addEventListener('click', async () => {
+      if (!currentCategoryForAssign) return alert('No category selected');
+      if (!selectedModules.size) return alert('Select at least one module to assign');
+      // ensure all selected are same module_table for simplicity
+      const tables = Array.from(new Set(Array.from(selectedModules.values()).map(x=>x.module_table)));
+      if (tables.length > 1) {
+        if (!confirm('Selected modules come from multiple tables. Assign anyway (will use the first table)?')) {
+          return;
+        }
+      }
+      const module_table = tables[0];
+      const fd = new FormData();
+      fd.append('action','assign_modules');
+      fd.append('csrf_token', CSRF);
+      fd.append('category_id', currentCategoryForAssign);
+      fd.append('module_table', module_table);
+      selectedModules.forEach(m => fd.append('module_ids[]', m.module_id));
+      try {
+        const res = await fetch(API, { method: 'POST', body: fd });
+        const json = await res.json();
+        if (json.success) {
+          alert('Assigned');
+          closeAssignModal();
+          await loadCategories();
+        } else alert(json.error || 'Assign failed');
+      } catch (err) {
+        alert('Request failed');
+      }
+    });
+
+    async function loadAssigned(categoryId){
+      const res = await fetch(API + '?action=get_assigned&category_id=' + encodeURIComponent(categoryId));
+      const j = await res.json();
+      if (!j.success) return;
+      selectedModules.clear();
+      const mappings = j.data || [];
+      mappings.forEach(m => {
+        const key = m.module_table + '|' + m.module_id;
+        selectedModules.set(key, { module_table: m.module_table, module_id: m.module_id, title: m.title || ('#'+m.module_id) });
+      });
+      // check checkboxes if available
+      document.querySelectorAll('.moduleCheckbox').forEach(cb => {
+        const key = cb.dataset.table + '|' + cb.dataset.id;
+        cb.checked = selectedModules.has(key);
+      });
+      renderSelected();
+    }
+
+    window.clearSelection = () => {
+      selectedModules.clear();
+      renderSelected();
+      document.querySelectorAll('.moduleCheckbox').forEach(cb => cb.checked = false);
+    };
+
+    // initial
+    loadCategories();
   });
-
-  document.getElementById('btnCloseQuiz').addEventListener('click', function(){ quizArea.classList.add('hidden'); });
-
-  // utility: escape for input value
-  function escapeHtml(s){ if (s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-  // close modal on backdrop click
-  modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
-
-  // wire review buttons newly created dynamically? already bound above on initial render.
-  // If you generate list dynamically later, re-run attaching logic.
-
 </script>
 
 </body>

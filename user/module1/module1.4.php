@@ -15,12 +15,12 @@ if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 // =========================
 // Security check
 // =========================
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['id'])) {
     header("Location: ../auth/login.php");
     exit;
 }
 
-$user_id   = $_SESSION['user_id'];
+$id   = $_SESSION['id'];
 $lesson_id = $_GET['lesson_id'] ?? 5;
 
 // =========================
@@ -80,7 +80,7 @@ $last_result = $conn->prepare("SELECT score, total_questions, status
                                FROM quiz_results 
                                WHERE participant_id = ? AND lesson_id = ? 
                                ORDER BY taken_at DESC LIMIT 1");
-$last_result->bind_param("ii", $user_id, $lesson_id);
+$last_result->bind_param("ii", $id, $lesson_id);
 $last_result->execute();
 $last_result->bind_result($last_score, $last_total, $last_status);
 $last_result->fetch();
@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $questions && $questions->num_rows >
     $status = ($percentage >= 70) ? "Passed" : "Failed";
 
     $check = $conn->prepare("SELECT result_id FROM quiz_results WHERE participant_id = ? AND lesson_id = ?");
-    $check->bind_param("ii", $user_id, $lesson_id);
+    $check->bind_param("ii", $id, $lesson_id);
     $check->execute();
     $check->store_result();
 
@@ -123,12 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $questions && $questions->num_rows >
         $stmt = $conn->prepare("UPDATE quiz_results 
                                 SET score = ?, total_questions = ?, status = ?, taken_at = NOW()
                                 WHERE participant_id = ? AND lesson_id = ?");
-        $stmt->bind_param("iissi", $score, $total, $status, $user_id, $lesson_id);
+        $stmt->bind_param("iissi", $score, $total, $status, $id, $lesson_id);
     } else {
         $stmt = $conn->prepare("INSERT INTO quiz_results 
                                 (participant_id, lesson_id, score, total_questions, status, taken_at) 
                                 VALUES (?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("iiiss", $user_id, $lesson_id, $score, $total, $status);
+        $stmt->bind_param("iiiss", $id, $lesson_id, $score, $total, $status);
     }
     $stmt->execute();
     $stmt->close();
@@ -146,7 +146,7 @@ $records = $conn->prepare("SELECT qm.title, qr.score, qr.total_questions, qr.sta
                            JOIN training_modules qm ON qr.lesson_id = qm.id
                            WHERE qr.participant_id = ?
                            ORDER BY qr.taken_at DESC");
-$records->bind_param("i", $user_id);
+$records->bind_param("i", $id);
 $records->execute();
 $history = $records->get_result();
 $records->close();
