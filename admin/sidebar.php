@@ -14,7 +14,7 @@
         <a href="/Capstone-defense/admin/dashboard.php"
            class="flex items-center gap-4 px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 text-lg font-medium">
           <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-          <span>Dashboard</span>
+          <span>0 Dashboard</span>
         </a>
       </li>
 
@@ -24,7 +24,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="folder" class="w-5 h-5"></i>
-            <span>Training Module</span>
+            <span>1 Training Module</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,7 +50,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="calendar" class="w-5 h-5"></i>
-            <span>Simulation & Event</span>
+            <span>2 Simulation & Event</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,7 +73,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="users" class="w-5 h-5"></i>
-            <span>Registration & Attendance</span>
+            <span>3 Scenario-Based Design</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,7 +96,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="activity" class="w-5 h-5"></i>
-            <span>Scenario-Based Design</span>
+            <span>4 Evaluation & Scoring</span> 
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,7 +119,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="check-circle" class="w-5 h-5"></i>
-            <span>Evaluation & Scoring</span>
+            <span>5 Equipment Inventory</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -144,7 +144,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="award" class="w-5 h-5"></i>
-            <span>Certification Issuance</span>
+            <span>6 Registration & Attendance</span> 
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,7 +167,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="package" class="w-5 h-5"></i>
-            <span>Equipment Inventory</span>
+            <span>7 Certification Issuance</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">

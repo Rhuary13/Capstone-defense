@@ -1,5 +1,4 @@
 <?php
-// admin_credential_verification.php
 session_start();
 
 // =========================
@@ -8,198 +7,381 @@ session_start();
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "simulation_event_planning"; 
+$db = "simulation_event_planning";
+
 $conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
-
-// Simple admin auth guard (replace with real auth)
-$is_admin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true;
-
-// Secret key for signature
-$APP_SECRET = "CHANGE_ME_SECRET";
-
-// Generate unique serial number
-function generate_serial($prefix = 'CERT', $length = 8) {
-    $pool = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    $s = $prefix . '-';
-    for ($i = 0; $i < $length; $i++) $s .= $pool[random_int(0, strlen($pool)-1)];
-    return $s;
-}
-function make_signature($serial, $secret) {
-    return hash_hmac('sha256', $serial, $secret);
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
 
 // =========================
-// Assign serial
+// CREATE DATABASE TABLES IF THEY DON'T EXIST
 // =========================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_serial'])) {
-    if (!$is_admin) { http_response_code(403); echo "Forbidden"; exit; }
 
-    $cert_id = intval($_POST['cert_id']);
-    $provided = trim($_POST['serial'] ?? '');
-    $serial = $provided === '' ? generate_serial() : strtoupper(preg_replace('/[^A-Z0-9\-]/', '', $provided));
-    $signature = make_signature($serial, $APP_SECRET);
+// Create 'events' table
+$sql_create_events_table = "
+CREATE TABLE IF NOT EXISTS `events` (
+    `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `title` VARCHAR(255) NOT NULL,
+    `type` VARCHAR(50) NOT NULL,
+    `date` DATE NOT NULL,
+    `time` TIME NOT NULL,
+    `duration` INT(11) NOT NULL,
+    `location` VARCHAR(255) NOT NULL,
+    `location_lat` DECIMAL(10, 8) NULL,
+    `location_lng` DECIMAL(11, 8) NULL,
+    `facilitator` VARCHAR(255) DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `approval_status` ENUM('Pending','Approved') NOT NULL DEFAULT 'Pending',
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `approved_at` TIMESTAMP NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+";
+if (!$conn->query($sql_create_events_table)) {
+    die("Error creating events table: " . $conn->error);
+}
 
-    $stmt = $conn->prepare("UPDATE certificates SET serial_number = ?, qr_code = ? WHERE id = ?");
-    $stmt->bind_param('ssi', $serial, $signature, $cert_id);
-    $stmt->execute();
-    $_SESSION['flash'] = $stmt->affected_rows > 0 ? "Serial assigned: $serial" : "Failed: " . $conn->error;
-    header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
+// Create 'staff' table
+$sql_create_staff_table = "
+CREATE TABLE IF NOT EXISTS `staff` (
+    `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(255) NOT NULL,
+    `email` VARCHAR(255) NOT NULL UNIQUE,
+    `password` VARCHAR(255) NOT NULL,
+    `role` ENUM('admin', 'staff') NOT NULL DEFAULT 'staff'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+";
+if (!$conn->query($sql_create_staff_table)) {
+    die("Error creating staff table: " . $conn->error);
+}
+
+// Create 'participants' table
+$sql_create_participants_table = "
+CREATE TABLE IF NOT EXISTS `participants` (
+    `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(255) NOT NULL,
+    `email` VARCHAR(255) NOT NULL UNIQUE,
+    `password` VARCHAR(255) NOT NULL,
+    `role` ENUM('participant') NOT NULL DEFAULT 'participant'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+";
+if (!$conn->query($sql_create_participants_table)) {
+    die("Error creating participants table: " . $conn->error);
+}
+
+// Create 'attendance_staff' table
+$sql_create_staff_attendance_table = "
+CREATE TABLE IF NOT EXISTS `attendance_staff` (
+    `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `staff_id` INT(11) NOT NULL,
+    `event_id` INT(11) NOT NULL,
+    `status` ENUM('Present', 'Absent') NOT NULL,
+    `timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`staff_id`) REFERENCES `staff`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+";
+if (!$conn->query($sql_create_staff_attendance_table)) {
+    die("Error creating attendance_staff table: " . $conn->error);
+}
+
+// Create 'attendance_participants' table
+$sql_create_participant_attendance_table = "
+CREATE TABLE IF NOT EXISTS `attendance_participants` (
+    `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `participant_id` INT(11) NOT NULL,
+    `event_id` INT(11) NOT NULL,
+    `status` ENUM('Present', 'Absent') NOT NULL,
+    `timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`participant_id`) REFERENCES `participants`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+";
+if (!$conn->query($sql_create_participant_attendance_table)) {
+    die("Error creating attendance_participants table: " . $conn->error);
+}
+
+// ----------------------
+// AUTHENTICATION & ROLE CHECK
+// ----------------------
+if (!isset($_SESSION['id'])) {
+    header("Location: ../auth/login.php");
     exit;
 }
 
-// =========================
-// Verify endpoint
-// =========================
-if (isset($_GET['action']) && $_GET['action'] === 'verify') {
-    $serial = $_GET['serial'] ?? '';
-    $sig = $_GET['sig'] ?? '';
-    $serial = substr(preg_replace('/[^A-Z0-9\-]/i', '', $serial), 0, 128);
-    $sig = preg_replace('/[^a-f0-9]/i', '', $sig);
+$user_role = $_SESSION['role'] ?? 'participant';
+$user_id = $_SESSION['id'];
 
-    if ($serial === '' || $sig === '') {
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'message' => 'Missing serial or signature']);
-        exit;
+// ----------------------
+// FETCH DATA FOR ADMIN
+// ----------------------
+$staff_reports = [];
+$events_list = [];
+$event_types = ['Training', 'Simulation', 'Event Program'];
+
+if ($user_role === 'admin') {
+    // Fetch list of all events for the filter dropdown
+    $events_res = $conn->query("SELECT id, title, type FROM events ORDER BY date DESC");
+    if ($events_res) {
+        while ($row = $events_res->fetch_assoc()) {
+            $events_list[] = $row;
+        }
+        $events_res->free();
     }
-    $expected = make_signature($serial, $APP_SECRET);
-    if (!hash_equals($expected, $sig)) {
-        echo json_encode(['ok' => false, 'message' => 'Signature mismatch']);
-        exit;
+
+    // Base query to fetch all staff attendance
+    $sql_staff_report = "
+        SELECT 
+            s.name, 
+            e.title, 
+            e.date, 
+            e.type,
+            sa.status 
+        FROM 
+            attendance_staff sa
+        JOIN 
+            staff s ON sa.staff_id = s.id
+        JOIN 
+            events e ON sa.event_id = e.id
+    ";
+
+    $where_clauses = [];
+    $bind_types = "";
+    $bind_params = [];
+
+    // Add filter by event if selected
+    if (isset($_GET['event_id']) && $_GET['event_id'] !== '') {
+        $where_clauses[] = "sa.event_id = ?";
+        $bind_types .= "i";
+        $bind_params[] = (int)$_GET['event_id'];
     }
-    $stmt = $conn->prepare("SELECT id, recipient, cert_title, serial_number, issue_date, expiry_date FROM certificates WHERE serial_number = ? LIMIT 1");
-    $stmt->bind_param('s', $serial);
+
+    // Add filter by event type if selected
+    if (isset($_GET['event_type']) && $_GET['event_type'] !== '') {
+        $where_clauses[] = "e.type = ?";
+        $bind_types .= "s";
+        $bind_params[] = $_GET['event_type'];
+    }
+
+    if (!empty($where_clauses)) {
+        $sql_staff_report .= " WHERE " . implode(" AND ", $where_clauses);
+    }
+
+    $stmt = $conn->prepare($sql_staff_report);
+    if (!empty($bind_params)) {
+        $stmt->bind_param($bind_types, ...$bind_params);
+    }
+    
     $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res->fetch_assoc();
-    if (!$row) {
-        echo json_encode(['ok' => false, 'message' => 'Serial not found']);
-        exit;
+    $result = $stmt->get_result();
+    
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $staff_reports[] = $row;
+        }
+        $result->free();
     }
-    echo json_encode(['ok' => true, 'message' => 'Certificate verified', 'data' => $row]);
-    exit;
+    $stmt->close();
 }
+
+// ----------------------
+// FETCH DATA FOR PARTICIPANT
+// ----------------------
+$participant_history = [];
+if ($user_role === 'participant') {
+    $sql_participant_history = "
+        SELECT
+            e.title,
+            e.date,
+            e.time,
+            e.type,
+            ap.status
+        FROM
+            attendance_participants ap
+        JOIN
+            events e ON ap.event_id = e.id
+        WHERE
+            ap.participant_id = ?
+        ORDER BY
+            e.date DESC;
+    ";
+    
+    $stmt = $conn->prepare($sql_participant_history);
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $participant_history[] = $row;
+        }
+        $result->free();
+    }
+    $stmt->close();
+}
+
+$conn->close();
 ?>
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Admin — Credential Verification</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <title>Attendance Reports</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="bg-gray-100 text-gray-900 flex">
-  <!-- Sidebar -->
-  <?php include '../sidebar.php'; ?>
+<body class="h-screen flex overflow-hidden">
 
-  <!-- Main content -->
-  <div class="flex-1 p-6 overflow-y-auto">
-    <header class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-semibold">Credential Verification — Admin</h1>
-      <div>
-        <?php if ($is_admin): ?>
-          <span class="text-sm text-green-600">Signed in as Admin</span>
+<aside class="w-64 bg-gradient-to-b from-blue-700 to-blue-600 text-white flex-shrink-0 h-full overflow-y-auto">
+    <?php include '../sidebar.php'; ?>
+</aside>
+
+<main class="flex-1 h-full overflow-y-auto p-8 bg-gray-100 pt-20">
+    <div class="bg-white p-6 rounded-xl shadow mb-8">
+        <?php if ($user_role === 'admin'): ?>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2 mb-4">
+                <i data-lucide="clipboard-list" class="w-8 h-8 text-blue-600"></i>
+                Staff Attendance Reports
+            </h2>
+            
+            <form method="GET" class="flex flex-col sm:flex-row gap-4 mb-4 items-center">
+                <label for="event-select" class="block text-sm font-medium text-gray-700">Filter by Event:</label>
+                <select id="event-select" name="event_id" class="px-3 py-2 border rounded-lg">
+                    <option value="">All Events</option>
+                    <?php foreach ($events_list as $event): ?>
+                        <option value="<?= $event['id'] ?>" <?= (isset($_GET['event_id']) && $_GET['event_id'] == $event['id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($event['title']) ?> (<?= htmlspecialchars($event['type']) ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <label for="type-select" class="block text-sm font-medium text-gray-700 sm:ml-4">Filter by Type:</label>
+                <select id="type-select" name="event_type" class="px-3 py-2 border rounded-lg">
+                    <option value="">All Types</option>
+                    <?php foreach ($event_types as $type): ?>
+                        <option value="<?= htmlspecialchars($type) ?>" <?= (isset($_GET['event_type']) && $_GET['event_type'] == $type) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($type) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mt-2 sm:mt-0">Apply Filter</button>
+            </form>
+            
+            <button onclick="exportTableToCSV('staff_report.csv')" class="px-4 py-2 mb-4 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                <i data-lucide="file-text" class="inline-block w-4 h-4 mr-2"></i>Export to CSV
+            </button>
+
+            <div class="overflow-x-auto">
+                <table id="staff-table" class="min-w-full border-collapse text-left">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="p-3">Staff Name</th>
+                            <th class="p-3">Event Title</th>
+                            <th class="p-3">Event Type</th>
+                            <th class="p-3">Date</th>
+                            <th class="p-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($staff_reports)): ?>
+                            <tr>
+                                <td colspan="5" class="p-3 text-center text-gray-500">No staff attendance records found.</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($staff_reports as $report): ?>
+                                <tr class="border-b">
+                                    <td class="p-3"><?= htmlspecialchars($report['name']) ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($report['title']) ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($report['type']) ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($report['date']) ?></td>
+                                    <td class="p-3">
+                                        <span class="<?= $report['status'] === 'Present' ? 'text-green-600' : 'text-red-600' ?>">
+                                            <?= htmlspecialchars($report['status']) ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+        <?php elseif ($user_role === 'participant'): ?>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2 mb-4">
+                <i data-lucide="history" class="w-8 h-8 text-blue-600"></i>
+                Your Attendance History
+            </h2>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full border-collapse text-left">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="p-3">Event Title</th>
+                            <th class="p-3">Event Type</th>
+                            <th class="p-3">Date</th>
+                            <th class="p-3">Time</th>
+                            <th class="p-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($participant_history)): ?>
+                            <tr>
+                                <td colspan="5" class="p-3 text-center text-gray-500">No attendance history found.</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($participant_history as $history): ?>
+                                <tr class="border-b">
+                                    <td class="p-3"><?= htmlspecialchars($history['title']) ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($history['type']) ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($history['date']) ?></td>
+                                    <td class="p-3"><?= htmlspecialchars($history['time']) ?></td>
+                                    <td class="p-3">
+                                        <span class="<?= $history['status'] === 'Present' ? 'text-green-600' : 'text-red-600' ?>">
+                                            <?= htmlspecialchars($history['status']) ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
         <?php else: ?>
-          <span class="text-sm text-red-600">Not signed in</span>
+             <div class="p-4 text-red-800 bg-red-100 border border-red-300 rounded-lg">
+                 Access Denied. You do not have permission to view this page.
+             </div>
         <?php endif; ?>
-      </div>
-    </header>
-
-    <?php if (!empty($_SESSION['flash'])): ?>
-      <div class="mb-4 p-3 rounded bg-white shadow text-sm">
-        <?= htmlspecialchars($_SESSION['flash']) ?>
-      </div>
-      <?php unset($_SESSION['flash']); ?>
-    <?php endif; ?>
-
-    <section>
-      <div class="bg-white shadow rounded p-4">
-        <h2 class="font-medium mb-4">Certificates</h2>
-        <div class="overflow-x-auto">
-          <table class="min-w-full table-auto">
-            <thead>
-              <tr class="text-left text-sm text-gray-600">
-                <th class="px-3 py-2">ID</th>
-                <th class="px-3 py-2">Recipient</th>
-                <th class="px-3 py-2">Title</th>
-                <th class="px-3 py-2">Serial</th>
-                <th class="px-3 py-2">QR / Signature</th>
-                <th class="px-3 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php
-              $rs = $conn->query("SELECT id, recipient, cert_title, serial_number, qr_code FROM certificates ORDER BY id DESC");
-              while ($r = $rs->fetch_assoc()):
-              ?>
-              <tr class="border-t">
-                <td class="px-3 py-2 text-sm"><?= htmlspecialchars($r['id']) ?></td>
-                <td class="px-3 py-2 text-sm"><?= htmlspecialchars($r['recipient']) ?></td>
-                <td class="px-3 py-2 text-sm"><?= htmlspecialchars($r['cert_title']) ?></td>
-                <td class="px-3 py-2 text-sm"><?= htmlspecialchars($r['serial_number'] ?? '') ?></td>
-                <td class="px-3 py-2 text-sm break-all"><?= htmlspecialchars($r['qr_code'] ?? '') ?></td>
-                <td class="px-3 py-2 text-sm">
-                  <?php if ($is_admin): ?>
-                    <form method="post" class="inline-block">
-                      <input type="hidden" name="cert_id" value="<?= htmlspecialchars($r['id']) ?>" />
-                      <input type="text" name="serial" placeholder="Optional serial" class="p-1 border rounded text-sm" />
-                      <button name="assign_serial" class="ml-2 px-2 py-1 bg-green-600 text-white rounded text-sm">Assign</button>
-                    </form>
-                    <?php if (!empty($r['serial_number']) && !empty($r['qr_code'])): ?>
-                      <div class="mt-2">
-                        <button class="copy-link-btn px-2 py-1 bg-gray-200 rounded text-sm" data-serial="<?= htmlspecialchars($r['serial_number']) ?>" data-sig="<?= htmlspecialchars($r['qr_code']) ?>">Copy link</button>
-                        <button class="show-qr-btn ml-2 px-2 py-1 bg-gray-200 rounded text-sm" data-serial="<?= htmlspecialchars($r['serial_number']) ?>" data-sig="<?= htmlspecialchars($r['qr_code']) ?>">Show QR</button>
-                      </div>
-                    <?php endif; ?>
-                  <?php else: ?>
-                    <span class="text-xs text-red-500">No permission</span>
-                  <?php endif; ?>
-                </td>
-              </tr>
-              <?php endwhile; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <div id="qrModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 hidden">
-      <div class="bg-white p-4 rounded shadow-lg w-80">
-        <h3 class="font-medium mb-2">Verification QR</h3>
-        <div id="qrContainer" class="mb-4 flex justify-center"></div>
-        <div id="linkPreview" class="break-words text-sm mb-4"></div>
-        <div class="flex justify-end">
-          <button id="closeModal" class="px-3 py-1 bg-gray-200 rounded">Close</button>
-        </div>
-      </div>
     </div>
-  </div>
-
+</main>
 <script>
-function buildVerifyLink(serial, sig) {
-  const base = window.location.origin + window.location.pathname;
-  return base + '?action=verify&serial=' + encodeURIComponent(serial) + '&sig=' + encodeURIComponent(sig);
-}
-document.addEventListener('click', function(e){
-  const target = e.target;
-  if (target.classList.contains('copy-link-btn')) {
-    const url = buildVerifyLink(target.dataset.serial, target.dataset.sig);
-    navigator.clipboard.writeText(url).then(()=>alert('Verification link copied')).catch(()=>alert('Copy failed: ' + url));
-  }
-  if (target.classList.contains('show-qr-btn')) {
-    const url = buildVerifyLink(target.dataset.serial, target.dataset.sig);
-    const qrImg = document.createElement('img');
-    qrImg.src = 'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' + encodeURIComponent(url);
-    const container = document.getElementById('qrContainer');
-    container.innerHTML = '';
-    container.appendChild(qrImg);
-    document.getElementById('linkPreview').textContent = url;
-    document.getElementById('qrModal').classList.remove('hidden');
-  }
-  if (target.id === 'closeModal') {
-    document.getElementById('qrModal').classList.add('hidden');
-  }
-});
+    // Initialize Lucide icons
+    lucide.createIcons();
+
+    function exportTableToCSV(filename) {
+        let csv = [];
+        const rows = document.querySelectorAll("#staff-table tr");
+        
+        for (const row of rows) {
+            const cols = row.querySelectorAll("th, td");
+            const rowData = [];
+            for (const col of cols) {
+                rowData.push('"' + col.innerText.replace(/"/g, '""') + '"');
+            }
+            csv.push(rowData.join(","));
+        }
+
+        // Create CSV file
+        const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
+        
+        // Create a temporary link to download the file
+        const downloadLink = document.createElement("a");
+        downloadLink.download = filename;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = "none";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
 </script>
 </body>
 </html>

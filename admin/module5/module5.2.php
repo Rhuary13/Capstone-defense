@@ -1,127 +1,154 @@
 <?php
-// module5.2.php - Data Collection & Mapping
+// admin_gear_checkout.php
 session_start();
+
+// =========================
+// Database connection
+// =========================
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "simulation_event_planning";  // change to your DB name
-$pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-]);
+$db   = "simulation_event_planning";
+$conn = new mysqli($host, $user, $pass, $db);
+if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
+
+// Admin guard
+$is_admin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true;
 
 // =========================
-// Only Admin Access
+// Ensure tables exist
 // =========================
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../../auth/login.php");
+$conn->query("CREATE TABLE IF NOT EXISTS equipment (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    quantity INT DEFAULT 1,
+    status ENUM('Available','In Use','Damaged','Maintenance') DEFAULT 'Available',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$conn->query("CREATE TABLE IF NOT EXISTS gear_checkout (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    equipment_id INT NOT NULL,
+    staff_name VARCHAR(255) NOT NULL,
+    purpose TEXT,
+    qty INT DEFAULT 1,
+    status ENUM('Pending','Approved','Rejected','Returned') DEFAULT 'Pending',
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMP NULL,
+    FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+// =========================
+// Approve / Reject Checkout
+// =========================
+if ($is_admin && isset($_GET['action'], $_GET['id'])) {
+    $id = intval($_GET['id']);
+    $action = $_GET['action'];
+
+    if ($action === 'approve') {
+        $conn->query("UPDATE gear_checkout SET status='Approved', approved_at=NOW() WHERE id=$id");
+        $_SESSION['flash'] = "Checkout request approved.";
+    } elseif ($action === 'reject') {
+        $conn->query("UPDATE gear_checkout SET status='Rejected', approved_at=NOW() WHERE id=$id");
+        $_SESSION['flash'] = "Checkout request rejected.";
+    } elseif ($action === 'return') {
+        $conn->query("UPDATE gear_checkout SET status='Returned' WHERE id=$id");
+        $_SESSION['flash'] = "Gear marked as returned.";
+    }
+    header("Location: " . strtok($_SERVER['REQUEST_URI'], '?'));
     exit;
 }
 
 // =========================
-// Handle Form Submission
+// Get requests
 // =========================
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $scenario = $_POST['scenario'];
-    $criterion = $_POST['criterion'];
-    $objective = $_POST['objective'];
-
-    $stmt = $pdo->prepare("INSERT INTO data_criteria (scenario, criterion, objective) VALUES (?, ?, ?)");
-    $stmt->execute([$scenario, $criterion, $objective]);
-
-    $message = "New Data Criterion Added Successfully!";
-}
-
-// =========================
-// Fetch Existing Records
-// =========================
-$criteria = $pdo->query("SELECT * FROM data_criteria ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+$sql = "SELECT g.*, e.name AS equipment_name, e.category 
+        FROM gear_checkout g 
+        JOIN equipment e ON g.equipment_id = e.id 
+        ORDER BY g.requested_at DESC";
+$rs = $conn->query($sql);
 ?>
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Data Collection - Disaster Preparedness</title>
+  <meta charset="utf-8">
+  <title>Admin — Gear Checkout</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="flex bg-gray-100">
+<body class="bg-gray-100 text-gray-900 flex">
 
   <!-- Sidebar -->
   <?php include '../sidebar.php'; ?>
 
-  <!-- Main Content -->
-  <main class="flex-1 p-6 overflow-y-auto">
-    <h1 class="text-2xl font-bold text-gray-700 mb-6">Data Collection & Mapping</h1>
+  <!-- Main content -->
+  <div class="flex-1 p-6 overflow-y-auto">
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-semibold">Gear Checkout Management</h1>
+      <div>
+        <?php if ($is_admin): ?>
+          <span class="text-sm text-green-600">Signed in as Admin</span>
+        <?php else: ?>
+          <span class="text-sm text-red-600">Not signed in</span>
+        <?php endif; ?>
+      </div>
+    </header>
 
-    <?php if (!empty($message)): ?>
-      <div class="mb-4 p-3 bg-green-100 text-green-700 rounded">
-        <?= htmlspecialchars($message) ?>
+    <?php if (!empty($_SESSION['flash'])): ?>
+      <div class="mb-4 p-3 rounded bg-white shadow text-sm">
+        <?= htmlspecialchars($_SESSION['flash']); unset($_SESSION['flash']); ?>
       </div>
     <?php endif; ?>
 
-    <!-- Data Input Form -->
-    <div class="bg-white shadow-md rounded-lg p-6 mb-6">
-      <h2 class="text-xl font-semibold mb-4">Add Data Criterion</h2>
-      <form method="POST" class="space-y-4">
-
-        <!-- Scenario Type -->
-        <div>
-          <label class="block text-gray-700 font-medium mb-2">Disaster Scenario</label>
-          <select name="scenario" required class="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300">
-            <option value="">-- Select Scenario --</option>
-            <option value="Flood">Flood</option>
-            <option value="Earthquake">Earthquake</option>
-            <option value="Typhoon">Typhoon</option>
-            <option value="Fire">Fire</option>
-            <option value="Landslide">Landslide</option>
-          </select>
+    <!-- Checkout Requests -->
+    <section>
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="font-medium mb-4">Staff Checkout Requests</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full table-auto text-sm">
+            <thead>
+              <tr class="text-left text-gray-600 border-b">
+                <th class="px-3 py-2">ID</th>
+                <th class="px-3 py-2">Staff</th>
+                <th class="px-3 py-2">Equipment</th>
+                <th class="px-3 py-2">Category</th>
+                <th class="px-3 py-2">Qty</th>
+                <th class="px-3 py-2">Purpose</th>
+                <th class="px-3 py-2">Status</th>
+                <th class="px-3 py-2">Requested</th>
+                <th class="px-3 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php while ($r = $rs->fetch_assoc()): ?>
+              <tr class="border-t">
+                <td class="px-3 py-2"><?= $r['id'] ?></td>
+                <td class="px-3 py-2"><?= htmlspecialchars($r['staff_name']) ?></td>
+                <td class="px-3 py-2"><?= htmlspecialchars($r['equipment_name']) ?></td>
+                <td class="px-3 py-2"><?= htmlspecialchars($r['category']) ?></td>
+                <td class="px-3 py-2"><?= $r['qty'] ?></td>
+                <td class="px-3 py-2"><?= htmlspecialchars($r['purpose']) ?></td>
+                <td class="px-3 py-2"><?= $r['status'] ?></td>
+                <td class="px-3 py-2"><?= $r['requested_at'] ?></td>
+                <td class="px-3 py-2 space-x-2">
+                  <?php if ($is_admin && $r['status'] === 'Pending'): ?>
+                    <a href="?action=approve&id=<?= $r['id'] ?>" class="text-green-600 text-xs hover:underline">Approve</a>
+                    <a href="?action=reject&id=<?= $r['id'] ?>" class="text-red-600 text-xs hover:underline">Reject</a>
+                  <?php elseif ($is_admin && $r['status'] === 'Approved'): ?>
+                    <a href="?action=return&id=<?= $r['id'] ?>" class="text-blue-600 text-xs hover:underline">Mark Returned</a>
+                  <?php else: ?>
+                    <span class="text-xs text-gray-400">No action</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <?php endwhile; ?>
+            </tbody>
+          </table>
         </div>
-
-        <!-- Criterion -->
-        <div>
-          <label class="block text-gray-700 font-medium mb-2">Criterion</label>
-          <input type="text" name="criterion" placeholder="e.g., Time to issue evacuation order"
-                 required class="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300">
-        </div>
-
-        <!-- Learning Objective -->
-        <div>
-          <label class="block text-gray-700 font-medium mb-2">Learning Objective</label>
-          <input type="text" name="objective" placeholder="e.g., Improve inter-agency communication protocols"
-                 required class="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300">
-        </div>
-
-        <button type="submit"
-                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-          Save Criterion
-        </button>
-      </form>
-    </div>
-
-    <!-- Existing Criteria Table -->
-    <div class="bg-white shadow-md rounded-lg p-6">
-      <h2 class="text-xl font-semibold mb-4">Configured Data Criteria</h2>
-      <table class="w-full border-collapse">
-        <thead>
-          <tr class="bg-gray-200 text-gray-700">
-            <th class="p-3 text-left">Scenario</th>
-            <th class="p-3 text-left">Criterion</th>
-            <th class="p-3 text-left">Learning Objective</th>
-            <th class="p-3 text-left">Created At</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($criteria as $row): ?>
-            <tr class="border-b">
-              <td class="p-3"><?= htmlspecialchars($row['scenario']) ?></td>
-              <td class="p-3"><?= htmlspecialchars($row['criterion']) ?></td>
-              <td class="p-3"><?= htmlspecialchars($row['objective']) ?></td>
-              <td class="p-3"><?= htmlspecialchars($row['created_at']) ?></td>
-            </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  </main>
+      </div>
+    </section>
+  </div>
 </body>
 </html>

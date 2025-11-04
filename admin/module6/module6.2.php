@@ -1,12 +1,22 @@
 <?php
 session_start();
+
+/**
+ * module3.2.php
+ * Attendance Tracking Portal
+ *
+ * - Admin: Monitors all attendance logs (staff & participants).
+ * - Staff: Records attendance for participants and views their own logs.
+ * - Participant: Checks in/out and views their own logs.
+ */
+
 // =========================
-// Database connection
+// Database Connection & Setup
 // =========================
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db   = "simulation_event_planning";
+$db = "training_management";
 
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) {
@@ -14,179 +24,325 @@ if ($conn->connect_error) {
 }
 
 // =========================
-// Security: Admin-only
+// Create Attendance Table if it doesn't exist
 // =========================
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../../auth/login.php");
+$sql_create_table = "
+CREATE TABLE IF NOT EXISTS `attendance` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT(11) NOT NULL,
+  `full_name` VARCHAR(255) NOT NULL,
+  `user_type` ENUM('staff','participant') NOT NULL,
+  `check_in` DATETIME DEFAULT NULL,
+  `check_out` DATETIME DEFAULT NULL,
+  `date` DATE NOT NULL,
+  UNIQUE KEY `user_date` (`id`, `date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+";
+if (!$conn->query($sql_create_table)) {
+    die("Error creating attendance table: " . $conn->error);
+}
+
+// =========================
+// Security Check
+// =========================
+if (!isset($_SESSION['id'])) {
+    header("Location: ../auth/login.php");
     exit;
 }
 
-// Handle file upload
-$uploadedFilePath = null;
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['customCert'])) {
-    $targetDir = __DIR__ . "/../../uploads/certificates/";
-    if (!is_dir($targetDir)) {
-        mkdir($targetDir, 0777, true);
-    }
-    $fileName = time() . "_" . basename($_FILES["customCert"]["name"]);
-    $targetFile = $targetDir . $fileName;
-    if (move_uploaded_file($_FILES["customCert"]["tmp_name"], $targetFile)) {
-        $uploadMsg = "File uploaded successfully: " . htmlspecialchars($fileName);
-        $uploadedFilePath = "../../uploads/certificates/" . $fileName;
-    } else {
-        $uploadMsg = "Error uploading file.";
+$user_id = $_SESSION['id'];
+$user_role = $_SESSION['role'] ?? 'participant';
+$user_full_name = $_SESSION['full_name'] ?? 'Guest';
+$user_type = $_SESSION['user_type'] ?? 'participant';
+
+$success_message = '';
+$error_message = '';
+
+// =========================
+// Handle Participant Check In/Out (POST request)
+// =========================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user_type === 'participant') {
+    $today = date("Y-m-d");
+
+    if (isset($_POST['check_in'])) {
+        $stmt = $conn->prepare("SELECT id FROM attendance WHERE id = ? AND date = ?");
+        $stmt->bind_param("is", $user_id, $today);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows > 0) {
+            $error_message = "❌ You have already checked in today.";
+        } else {
+            $stmt = $conn->prepare("INSERT INTO attendance (id, full_name, user_type, check_in, date) VALUES (?, ?, ?, NOW(), ?)");
+            $stmt->bind_param("isss", $user_id, $user_full_name, $user_type, $today);
+            if ($stmt->execute()) {
+                $success_message = "✅ You have successfully checked in!";
+            } else {
+                $error_message = "❌ Check-in failed. " . $stmt->error;
+            }
+        }
+        $stmt->close();
+    } elseif (isset($_POST['check_out'])) {
+        $stmt = $conn->prepare("SELECT id FROM attendance WHERE id = ? AND date = ? AND check_out IS NULL");
+        $stmt->bind_param("is", $user_id, $today);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result->num_rows > 0) {
+            $stmt = $conn->prepare("UPDATE attendance SET check_out = NOW() WHERE id = ? AND date = ?");
+            $stmt->bind_param("is", $id, $today);
+            if ($stmt->execute()) {
+                $success_message = "✅ You have successfully checked out!";
+            } else {
+                $error_message = "❌ Check-out failed. " . $stmt->error;
+            }
+        } else {
+            $error_message = "❌ You must check in before checking out.";
+        }
+        $stmt->close();
     }
 }
 
-// Handle Save Certificate
-if (isset($_POST['save_certificate'])) {
-    $title       = $conn->real_escape_string($_POST['cert_title']);
-    $recipient   = $conn->real_escape_string($_POST['recipient']);
-    $description = $conn->real_escape_string($_POST['description']);
-    $sign1       = $conn->real_escape_string($_POST['signatory1']);
-    $sign2       = $conn->real_escape_string($_POST['signatory2']);
-    $issueDate   = $conn->real_escape_string($_POST['issue_date']);
-    $expiryDate  = $conn->real_escape_string($_POST['expiry_date']);
+// =========================
+// Handle Staff Recording Participant Attendance
+// =========================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user_role === 'staff' && isset($_POST['record_participant_attendance'])) {
+    $participant_id = trim($_POST['participant_id']);
+    $action = $_POST['action'];
+    $today = date("Y-m-d");
 
-    $sql = "INSERT INTO certificates 
-        (cert_title, recipient, description, signatory1, signatory2, issue_date, expiry_date)
-        VALUES 
-        ('$title', '$recipient', '$description', '$sign1', '$sign2', '$issueDate', '$expiryDate')";
-
-    if ($conn->query($sql)) {
-        $msg = "✅ Certificate saved successfully!";
+    if (empty($participant_id)) {
+        $error_message = "❌ Please enter a Participant ID.";
     } else {
-        $msg = "❌ Error: " . $conn->error;
+        $stmt = $conn->prepare("SELECT id, full_name FROM users WHERE id = ? AND user_type = 'participant'");
+        $stmt->bind_param("i", $participant_id);
+        $stmt->execute();
+        $participant_data = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$participant_data) {
+            $error_message = "❌ Participant not found.";
+        } else {
+            if ($action === 'check_in') {
+                $stmt = $conn->prepare("INSERT INTO attendance (id, full_name, user_type, check_in, date) VALUES (?, ?, 'participant', NOW(), ?)");
+                $stmt->bind_param("iss", $participant_id, $participant_data['full_name'], $today);
+                if ($stmt->execute()) {
+                    $success_message = "✅ Participant '" . htmlspecialchars($participant_data['full_name']) . "' checked in successfully.";
+                } else {
+                    $error_message = "❌ Check-in failed: " . $stmt->error;
+                }
+            } elseif ($action === 'check_out') {
+                $stmt = $conn->prepare("UPDATE attendance SET check_out = NOW() WHERE id = ? AND date = ? AND check_out IS NULL");
+                $stmt->bind_param("is", $participant_id, $today);
+                if ($stmt->execute() && $stmt->affected_rows > 0) {
+                    $success_message = "✅ Participant '" . htmlspecialchars($participant_data['full_name']) . "' checked out successfully.";
+                } else {
+                    $error_message = "❌ Check-out failed. Participant might not have checked in yet.";
+                }
+            }
+            $stmt->close();
+        }
     }
+}
+
+// =========================
+// Fetch Attendance Logs for Display
+// =========================
+$attendance_logs = [];
+if ($user_role === 'admin') {
+    $result = $conn->query("SELECT * FROM attendance ORDER BY date DESC, check_in DESC");
+    if ($result) {
+        $attendance_logs = $result->fetch_all(MYSQLI_ASSOC);
+    }
+} elseif ($user_type === 'staff' || $user_type === 'participant') {
+    $stmt = $conn->prepare("SELECT * FROM attendance WHERE id = ? ORDER BY date DESC, check_in DESC");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $attendance_logs = $result->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Certificate Designer</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:wght@700&family=Roboto&display=swap');
-    .certificate-frame {
-      width: 1123px; height: 794px;
-      background: #fff;
-      border: 8px solid #d4af37;
-      border-radius: 12px;
-      padding: 60px;
-      position: relative;
-      box-shadow: 0 0 15px rgba(0,0,0,0.15);
-    }
-    .signature-line { border-top: 1px solid #333; width: 220px; margin: 0 auto; }
-  </style>
+    <meta charset="UTF-8">
+    <title>Attendance Tracking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .sidebar { min-height: 100vh; }
+    </style>
 </head>
-<body class="flex h-screen bg-gray-100">
+<body class="bg-gray-100 min-h-screen flex">
+    <?php include '../sidebar.php'; ?>
 
-<!-- Sidebar -->
-<?php include '../sidebar.php'; ?>
+    <div class="flex-1 flex flex-col h-screen">
+        <nav class="bg-white shadow px-6 py-4 flex justify-between items-center fixed top-0 left-64 right-0 z-10">
+            <h1 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <i data-lucide="calendar-check" class="w-6 h-6 text-indigo-600"></i>
+                Attendance Tracking
+            </h1>
+        </nav>
 
-<!-- Main Content -->
-<main class="flex-1 overflow-y-auto p-6 bg-gray-50">
-  <h1 class="text-2xl font-bold text-gray-700 mb-6">Certificate Designer</h1>
+        <main class="flex-1 px-6 py-8 mt-16 h-[calc(100vh-4rem)] overflow-y-auto flex justify-center">
+            <div class="w-full max-w-5xl">
+                <?php if ($success_message): ?>
+                    <div class="mb-4 p-4 rounded-lg bg-green-50 text-green-700 border border-green-200">
+                        <?= $success_message; ?>
+                    </div>
+                <?php endif; ?>
+                <?php if ($error_message): ?>
+                    <div class="mb-4 p-4 rounded-lg bg-red-50 text-red-700 border border-red-200">
+                        <?= $error_message; ?>
+                    </div>
+                <?php endif; ?>
 
-  <?php if (!empty($msg)): ?>
-    <p class="mb-4 font-semibold text-green-600"><?= $msg ?></p>
-  <?php endif; ?>
+                <?php if ($user_role === 'admin'): ?>
+                    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100 mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i data-lucide="database" class="w-6 h-6 text-indigo-600"></i> Full Attendance Log
+                        </h2>
+                        <?php if (!empty($attendance_logs)): ?>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full bg-white border-collapse">
+                                    <thead>
+                                        <tr class="bg-gray-100 text-left text-sm font-semibold text-gray-700">
+                                            <th class="py-3 px-4 border-b">Name</th>
+                                            <th class="py-3 px-4 border-b">Type</th>
+                                            <th class="py-3 px-4 border-b">Date</th>
+                                            <th class="py-3 px-4 border-b">Check-in</th>
+                                            <th class="py-3 px-4 border-b">Check-out</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($attendance_logs as $log): ?>
+                                            <tr class="hover:bg-gray-50 text-gray-700 text-sm">
+                                                <td class="py-3 px-4 border-b"><?= htmlspecialchars($log['full_name']); ?></td>
+                                                <td class="py-3 px-4 border-b"><?= ucwords($log['user_type']); ?></td>
+                                                <td class="py-3 px-4 border-b"><?= date('M d, Y', strtotime($log['date'])); ?></td>
+                                                <td class="py-3 px-4 border-b"><?= $log['check_in'] ? date('h:i A', strtotime($log['check_in'])) : 'N/A'; ?></td>
+                                                <td class="py-3 px-4 border-b"><?= $log['check_out'] ? date('h:i A', strtotime($log['check_out'])) : 'N/A'; ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else: ?>
+                            <p class="text-gray-500 text-center py-4">No attendance records found.</p>
+                        <?php endif; ?>
+                    </div>
+                <?php elseif ($user_role === 'staff'): ?>
+                    <div class="space-y-6">
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <i data-lucide="clipboard-pen" class="w-6 h-6 text-green-600"></i> Record Participant Attendance
+                            </h2>
+                            <p class="text-gray-600 mb-4">Enter the Participant's ID to record their check-in or check-out.</p>
+                            <form method="POST" class="space-y-4">
+                                <div>
+                                    <label for="participant_id" class="block text-sm font-medium text-gray-700">Participant ID</label>
+                                    <input type="text" id="participant_id" name="participant_id" required
+                                        class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
+                                </div>
+                                <div class="flex gap-4">
+                                    <button type="submit" name="record_participant_attendance" value="check_in"
+                                        class="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                        <i data-lucide="log-in" class="w-5 h-5 mr-2"></i> Check In
+                                    </button>
+                                    <button type="submit" name="record_participant_attendance" value="check_out"
+                                        class="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                        <i data-lucide="log-out" class="w-5 h-5 mr-2"></i> Check Out
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <i data-lucide="user-check" class="w-6 h-6 text-gray-600"></i> My Attendance Log
+                            </h2>
+                            <?php if (!empty($attendance_logs)): ?>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full bg-white border-collapse">
+                                        <thead>
+                                            <tr class="bg-gray-100 text-left text-sm font-semibold text-gray-700">
+                                                <th class="py-3 px-4 border-b">Date</th>
+                                                <th class="py-3 px-4 border-b">Check-in</th>
+                                                <th class="py-3 px-4 border-b">Check-out</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($attendance_logs as $log): ?>
+                                                <tr class="hover:bg-gray-50 text-gray-700 text-sm">
+                                                    <td class="py-3 px-4 border-b"><?= date('M d, Y', strtotime($log['date'])); ?></td>
+                                                    <td class="py-3 px-4 border-b"><?= $log['check_in'] ? date('h:i A', strtotime($log['check_in'])) : 'N/A'; ?></td>
+                                                    <td class="py-3 px-4 border-b"><?= $log['check_out'] ? date('h:i A', strtotime($log['check_out'])) : 'N/A'; ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <p class="text-gray-500 text-center py-4">You have no attendance records yet.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="space-y-6">
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100 text-center">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center justify-center gap-2">
+                                <i data-lucide="user" class="w-6 h-6 text-indigo-600"></i> My Attendance
+                            </h2>
+                            <p class="text-gray-600 mb-4">Click the button to check in for today's training session.</p>
+                            <form method="POST" class="flex flex-col sm:flex-row gap-4 justify-center">
+                                <button type="submit" name="check_in"
+                                    class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                    <i data-lucide="log-in" class="w-5 h-5 mr-2"></i> Check In
+                                </button>
+                                <button type="submit" name="check_out"
+                                    class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    <i data-lucide="log-out" class="w-5 h-5 mr-2"></i> Check Out
+                                </button>
+                            </form>
+                        </div>
 
-  <div class="bg-white shadow-md rounded-lg p-6">
-    <h2 class="text-xl font-semibold mb-4">Customize Certificate</h2>
-
-    <!-- File Upload -->
-    <form method="POST" enctype="multipart/form-data" class="mb-6">
-      <label class="block text-gray-700 font-semibold mb-2">Upload Ready-Made Certificate (PDF, Word, Image)</label>
-      <input type="file" name="customCert" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-             class="w-full p-2 border rounded mb-2">
-      <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
-        Upload File
-      </button>
-      <?php if (!empty($uploadMsg)): ?>
-        <p class="mt-2 text-sm text-blue-600"><?= $uploadMsg ?></p>
-      <?php endif; ?>
-    </form>
-
-    <!-- Show uploaded or default certificate -->
-    <?php if ($uploadedFilePath): ?>
-      <div class="mt-6 bg-white shadow rounded p-4">
-        <h2 class="text-lg font-semibold mb-4">Uploaded Certificate</h2>
-        <?php if (preg_match('/\.(jpg|jpeg|png)$/i', $uploadedFilePath)): ?>
-          <img src="<?= $uploadedFilePath ?>" alt="Uploaded Certificate" class="mx-auto max-w-full shadow-lg">
-        <?php elseif (preg_match('/\.pdf$/i', $uploadedFilePath)): ?>
-          <iframe src="<?= $uploadedFilePath ?>" class="w-full h-[800px] border"></iframe>
-        <?php elseif (preg_match('/\.(doc|docx)$/i', $uploadedFilePath)): ?>
-          <p class="text-blue-600">Word document uploaded:
-            <a href="<?= $uploadedFilePath ?>" target="_blank" class="underline">Open File</a>
-          </p>
-        <?php else: ?>
-          <p class="text-red-600">Unsupported file type.</p>
-        <?php endif; ?>
-      </div>
-    <?php else: ?>
-      <div id="certificate" class="certificate-frame mx-auto">
-        <h1 class="text-5xl font-extrabold text-center tracking-wide">CERTIFICATE</h1>
-        <h2 class="text-2xl text-center text-yellow-700 mt-2 mb-6">OF RECOGNITION</h2>
-        <p class="text-center text-gray-600 mb-6 tracking-wide uppercase">
-          THE FOLLOWING AWARD IS GIVEN TO
-        </p>
-
-        <!-- Editable Recipient -->
-        <h3 id="recipient" class="editable text-4xl text-center font-bold text-yellow-800 italic mb-4" contenteditable="true">
-          Dani Martinez
-        </h3>
-        <!-- Editable Description -->
-        <p id="description" class="editable text-center text-gray-700 max-w-3xl mx-auto" contenteditable="true">
-          This certificate is given to Dani Martinez for his achievement in the field of education and proves that he is competent in his field.
-        </p>
-        <!-- Editable Signatories -->
-        <div class="flex justify-between mt-16 px-16">
-          <div id="signatory1" class="editable text-center" contenteditable="true">
-            <p class="font-bold uppercase">Howard Ong</p>
-            <p class="text-gray-600">Head Master</p>
-          </div>
-          <div id="signatory2" class="editable text-center" contenteditable="true">
-            <p class="font-bold uppercase">Neil Tran</p>
-            <p class="text-gray-600">Mentor</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Save form -->
-      <form method="POST" action="module6.2.php" class="mt-4">
-        <input type="hidden" name="cert_title" id="certTitleInput">
-        <input type="hidden" name="recipient" id="recipientInput">
-        <input type="hidden" name="description" id="descriptionInput">
-        <input type="hidden" name="signatory1" id="sign1Input">
-        <input type="hidden" name="signatory2" id="sign2Input">
-        <input type="hidden" name="issue_date" id="issueDateInput">
-        <input type="hidden" name="expiry_date" id="expiryDateInput">
-
-        <button type="submit" name="save_certificate"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-          Save Certificate
-        </button>
-      </form>
-    <?php endif; ?>
-  </div>
-</main>
-
-<script>
-document.querySelector("form:last-of-type")?.addEventListener("submit", function () {
-  document.getElementById("certTitleInput").value = "Certificate of Recognition";
-  document.getElementById("recipientInput").value = document.getElementById("recipient").innerText;
-  document.getElementById("descriptionInput").value = document.getElementById("description").innerText;
-  document.getElementById("sign1Input").value = document.getElementById("signatory1").innerText;
-  document.getElementById("sign2Input").value = document.getElementById("signatory2").innerText;
-
-  // auto issue & expiry
-  document.getElementById("issueDateInput").value = new Date().toISOString().split("T")[0];
-  let expiry = new Date();
-  expiry.setFullYear(expiry.getFullYear() + 1);
-  document.getElementById("expiryDateInput").value = expiry.toISOString().split("T")[0];
-});
-</script>
+                        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <i data-lucide="history" class="w-6 h-6 text-gray-600"></i> My Attendance Log
+                            </h2>
+                            <?php if (!empty($attendance_logs)): ?>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full bg-white border-collapse">
+                                        <thead>
+                                            <tr class="bg-gray-100 text-left text-sm font-semibold text-gray-700">
+                                                <th class="py-3 px-4 border-b">Date</th>
+                                                <th class="py-3 px-4 border-b">Check-in</th>
+                                                <th class="py-3 px-4 border-b">Check-out</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($attendance_logs as $log): ?>
+                                                <tr class="hover:bg-gray-50 text-gray-700 text-sm">
+                                                    <td class="py-3 px-4 border-b"><?= date('M d, Y', strtotime($log['date'])); ?></td>
+                                                    <td class="py-3 px-4 border-b"><?= $log['check_in'] ? date('h:i A', strtotime($log['check_in'])) : 'N/A'; ?></td>
+                                                    <td class="py-3 px-4 border-b"><?= $log['check_out'] ? date('h:i A', strtotime($log['check_out'])) : 'N/A'; ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <p class="text-gray-500 text-center py-4">You have no attendance records yet.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </main>
+    </div>
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>
