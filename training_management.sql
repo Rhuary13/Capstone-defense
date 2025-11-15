@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 01, 2025 at 12:24 AM
+-- Generation Time: Nov 15, 2025 at 06:13 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -177,11 +177,27 @@ INSERT INTO `drills` (`id`, `title`, `date`, `details`, `created_at`, `type`, `f
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `learning_objectives`
+--
+
+CREATE TABLE `learning_objectives` (
+  `id` int(11) NOT NULL,
+  `module_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `lessons`
 --
 
 CREATE TABLE `lessons` (
   `id` int(11) NOT NULL,
+  `module_id` int(11) DEFAULT NULL,
   `title` varchar(255) NOT NULL,
   `summary` text DEFAULT NULL,
   `content` text NOT NULL,
@@ -191,16 +207,62 @@ CREATE TABLE `lessons` (
   `scheduled_date` date DEFAULT NULL,
   `file_path` varchar(512) DEFAULT NULL,
   `published` tinyint(1) DEFAULT 1,
-  `created_by` int(11) DEFAULT NULL
+  `created_by` int(11) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `status` enum('draft','published') NOT NULL DEFAULT 'draft',
+  `views` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `approved_by` int(10) UNSIGNED DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `category_id` int(11) DEFAULT NULL,
+  `topic` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `lessons`
 --
 
-INSERT INTO `lessons` (`id`, `title`, `summary`, `content`, `created_at`, `disaster_type`, `file_name`, `scheduled_date`, `file_path`, `published`, `created_by`) VALUES
-(1, 'Disaster Preparedness Training and Simulation (All Disaster Types)', NULL, 'Disaster preparedness refers to the systematic and continuous process of planning, organizing, training, equipping, exercising, evaluating, and improving actions and measures taken to ensure that individuals, families, and communities are ready to respond effectively when disasters occur. It is one of the four thematic areas of Disaster Risk Reduction and Management (DRRM), alongside prevention and mitigation, response, and recovery and rehabilitation, as mandated by Republic Act No. 10121 or the Philippine DRRM Act of 2010. Preparedness aims to strengthen the capability of communities to anticipate, cope with, and recover from the impacts of hazards through effective coordination, planning, and resource management.\r\n\r\nA disaster can be either natural or human-induced. Natural disasters include earthquakes, typhoons, floods, landslides, volcanic eruptions, droughts, and tsunamis. Human-induced or technological disasters include fires, explosions, chemical spills, transportation accidents, industrial failures, and civil disturbances. Each type of disaster presents different risks, but preparedness measures share common elements designed to reduce loss of life and property damage. Understanding these types of disasters allows communities to identify the hazards most likely to affect them and to plan accordingly.\r\n\r\nPreparedness begins with awareness and education. Every community must identify its specific hazards and conduct a risk assessment to determine which areas and populations are most vulnerable. Based on this assessment, local government units and barangay officials develop comprehensive DRRM plans that outline how to prepare for, respond to, and recover from disasters. These plans should include early warning systems, evacuation procedures, communication protocols, and stockpiles of emergency supplies. Public awareness campaigns, community seminars, and household-level preparedness activities are essential in ensuring that all residents understand what to do before, during, and after a disaster.\r\n\r\nSimulation exercises and drills are integral parts of disaster preparedness. They serve as practical applications of the DRRM plans and provide an opportunity to test coordination, response time, and resource management in a controlled environment. Common simulation activities include earthquake drills that demonstrate the “drop, cover, and hold” technique, flood evacuation exercises, and fire drills. These drills familiarize participants with emergency routes, safe zones, and standard operating procedures. During simulations, specific roles are assigned such as Incident Commander, Safety Officer, Medical Response, Logistics, and Communications, ensuring that everyone knows their function during an actual emergency. After the drill, a debriefing session is conducted to identify strengths, weaknesses, and areas for improvement.\r\n\r\nEmergency preparedness also involves the management of resources and supplies. Every household is encouraged to maintain an emergency “Go Bag” containing essential items such as food, water, flashlight, first aid supplies, medicines, identification documents, and clothing sufficient for at least seventy-two hours. Communities, on the other hand, should maintain shared resources like rescue tools, first aid kits, radios, emergency vehicles, and designated evacuation centers equipped to handle displaced residents. Effective resource management ensures that vital items and services are available when needed most.\r\n\r\nThe success of disaster preparedness relies heavily on the clear definition of roles and responsibilities. Local government units are responsible for activating the Barangay or City/Municipal DRRM Committees, updating contingency plans, and coordinating with the national government through the NDRRMC. Responders and volunteers must adhere to standard operating procedures, ensure their safety, and maintain accountability during operations. Community members play an equally important role by actively participating in drills, following official advisories, and keeping their families informed and prepared.\r\n\r\nContinuous monitoring and improvement are essential components of preparedness. After every drill or disaster event, an evaluation should be conducted to assess response effectiveness, coordination, and communication. Lessons learned must be documented and integrated into updated DRRM plans. Regular reviews of hazard maps, communication systems, and early warning mechanisms help ensure that preparedness strategies remain relevant and effective. Indicators such as the frequency of drills, level of community participation, and availability of resources provide measurable data on the community’s state of readiness.\r\n\r\nUltimately, the goal of disaster preparedness is to build a culture of safety and resilience. This can only be achieved through sustained public education, regular training, and active community involvement. Every household, school, and workplace must internalize the importance of readiness and integrate safety measures into their daily routines. Partnerships among local governments, private institutions, and non-government organizations strengthen community capacity to prevent and respond to disasters. When preparedness becomes a shared responsibility, communities become more capable of protecting lives and recovering swiftly after any calamity.\r\n\r\nIn summary, disaster preparedness and simulation activities are vital tools in minimizing the adverse effects of both natural and human-induced disasters. Preparedness saves lives, reduces economic losses, and strengthens the resilience of communities. By continuously training, simulating, and learning from each experience, societies can ensure that when disaster strikes, they are not caught off guard but are ready to act efficiently, cooperatively, and confidently. As the National Disaster Risk Reduction and Management Council (NDRRMC) emphasizes, “Preparedness today ensures safety tomorrow.”', '2025-10-31 19:52:46', NULL, NULL, NULL, NULL, 1, NULL),
-(2, 'EARTHQUAKE DRILL', NULL, 'READY FOR EARTHQUAKE!', '2025-10-31 20:24:35', 'Earthquake', NULL, '2025-11-11', 'C:\\xampp\\htdocs\\Capstone-defense\\admin\\module1/uploads/lessons/1761942275_Earthquake_Drill.pdf', 1, 7);
+INSERT INTO `lessons` (`id`, `module_id`, `title`, `summary`, `content`, `created_at`, `disaster_type`, `file_name`, `scheduled_date`, `file_path`, `published`, `created_by`, `description`, `status`, `views`, `approved_by`, `approved_at`, `updated_at`, `category_id`, `topic`) VALUES
+(1, NULL, 'Disaster Preparedness Training and Simulation (All Disaster Types)', NULL, 'Disaster preparedness refers to the systematic and continuous process of planning, organizing, training, equipping, exercising, evaluating, and improving actions and measures taken to ensure that individuals, families, and communities are ready to respond effectively when disasters occur. It is one of the four thematic areas of Disaster Risk Reduction and Management (DRRM), alongside prevention and mitigation, response, and recovery and rehabilitation, as mandated by Republic Act No. 10121 or the Philippine DRRM Act of 2010. Preparedness aims to strengthen the capability of communities to anticipate, cope with, and recover from the impacts of hazards through effective coordination, planning, and resource management.\r\n\r\nA disaster can be either natural or human-induced. Natural disasters include earthquakes, typhoons, floods, landslides, volcanic eruptions, droughts, and tsunamis. Human-induced or technological disasters include fires, explosions, chemical spills, transportation accidents, industrial failures, and civil disturbances. Each type of disaster presents different risks, but preparedness measures share common elements designed to reduce loss of life and property damage. Understanding these types of disasters allows communities to identify the hazards most likely to affect them and to plan accordingly.\r\n\r\nPreparedness begins with awareness and education. Every community must identify its specific hazards and conduct a risk assessment to determine which areas and populations are most vulnerable. Based on this assessment, local government units and barangay officials develop comprehensive DRRM plans that outline how to prepare for, respond to, and recover from disasters. These plans should include early warning systems, evacuation procedures, communication protocols, and stockpiles of emergency supplies. Public awareness campaigns, community seminars, and household-level preparedness activities are essential in ensuring that all residents understand what to do before, during, and after a disaster.\r\n\r\nSimulation exercises and drills are integral parts of disaster preparedness. They serve as practical applications of the DRRM plans and provide an opportunity to test coordination, response time, and resource management in a controlled environment. Common simulation activities include earthquake drills that demonstrate the “drop, cover, and hold” technique, flood evacuation exercises, and fire drills. These drills familiarize participants with emergency routes, safe zones, and standard operating procedures. During simulations, specific roles are assigned such as Incident Commander, Safety Officer, Medical Response, Logistics, and Communications, ensuring that everyone knows their function during an actual emergency. After the drill, a debriefing session is conducted to identify strengths, weaknesses, and areas for improvement.\r\n\r\nEmergency preparedness also involves the management of resources and supplies. Every household is encouraged to maintain an emergency “Go Bag” containing essential items such as food, water, flashlight, first aid supplies, medicines, identification documents, and clothing sufficient for at least seventy-two hours. Communities, on the other hand, should maintain shared resources like rescue tools, first aid kits, radios, emergency vehicles, and designated evacuation centers equipped to handle displaced residents. Effective resource management ensures that vital items and services are available when needed most.\r\n\r\nThe success of disaster preparedness relies heavily on the clear definition of roles and responsibilities. Local government units are responsible for activating the Barangay or City/Municipal DRRM Committees, updating contingency plans, and coordinating with the national government through the NDRRMC. Responders and volunteers must adhere to standard operating procedures, ensure their safety, and maintain accountability during operations. Community members play an equally important role by actively participating in drills, following official advisories, and keeping their families informed and prepared.\r\n\r\nContinuous monitoring and improvement are essential components of preparedness. After every drill or disaster event, an evaluation should be conducted to assess response effectiveness, coordination, and communication. Lessons learned must be documented and integrated into updated DRRM plans. Regular reviews of hazard maps, communication systems, and early warning mechanisms help ensure that preparedness strategies remain relevant and effective. Indicators such as the frequency of drills, level of community participation, and availability of resources provide measurable data on the community’s state of readiness.\r\n\r\nUltimately, the goal of disaster preparedness is to build a culture of safety and resilience. This can only be achieved through sustained public education, regular training, and active community involvement. Every household, school, and workplace must internalize the importance of readiness and integrate safety measures into their daily routines. Partnerships among local governments, private institutions, and non-government organizations strengthen community capacity to prevent and respond to disasters. When preparedness becomes a shared responsibility, communities become more capable of protecting lives and recovering swiftly after any calamity.\r\n\r\nIn summary, disaster preparedness and simulation activities are vital tools in minimizing the adverse effects of both natural and human-induced disasters. Preparedness saves lives, reduces economic losses, and strengthens the resilience of communities. By continuously training, simulating, and learning from each experience, societies can ensure that when disaster strikes, they are not caught off guard but are ready to act efficiently, cooperatively, and confidently. As the National Disaster Risk Reduction and Management Council (NDRRMC) emphasizes, “Preparedness today ensures safety tomorrow.”', '2025-10-31 19:52:46', NULL, NULL, NULL, NULL, 1, NULL, NULL, 'draft', 0, NULL, NULL, '2025-11-02 14:12:06', NULL, NULL),
+(2, NULL, 'EARTHQUAKE DRILL', NULL, 'READY FOR EARTHQUAKE!', '2025-10-31 20:24:35', 'Earthquake', NULL, '2025-11-11', 'C:\\xampp\\htdocs\\Capstone-defense\\admin\\module1/uploads/lessons/1761942275_Earthquake_Drill.pdf', 1, 7, NULL, 'draft', 0, NULL, NULL, '2025-11-02 14:12:06', NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `modules`
+--
+
+CREATE TABLE `modules` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `slug` varchar(150) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `order_index` int(11) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `module_categories`
+--
+
+CREATE TABLE `module_categories` (
+  `id` int(11) NOT NULL,
+  `module_table` varchar(100) NOT NULL,
+  `module_id` int(11) NOT NULL,
+  `category_id` int(11) NOT NULL,
+  `assigned_by` int(11) DEFAULT NULL,
+  `assigned_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `module_categories`
+--
+
+INSERT INTO `module_categories` (`id`, `module_table`, `module_id`, `category_id`, `assigned_by`, `assigned_at`) VALUES
+(1, 'lessons', 1, 1, 7, '2025-11-02 20:17:08'),
+(2, 'lessons', 7, 1, 7, '2025-11-02 20:17:08');
 
 -- --------------------------------------------------------
 
@@ -221,6 +283,17 @@ CREATE TABLE `module_postings` (
 
 INSERT INTO `module_postings` (`id`, `lesson_id`, `target`, `created_at`) VALUES
 (1, 2, 'all', '2025-10-31 13:24:35');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `module_staff_assignments`
+--
+
+CREATE TABLE `module_staff_assignments` (
+  `module_id` int(11) NOT NULL,
+  `staff_id` int(10) UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -520,31 +593,101 @@ CREATE TABLE `staff` (
   `id` int(10) UNSIGNED NOT NULL,
   `name` varchar(191) NOT NULL,
   `role` varchar(100) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `expertise` varchar(255) DEFAULT ''
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `staff`
 --
 
-INSERT INTO `staff` (`id`, `name`, `role`, `created_at`) VALUES
-(1, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:01:50'),
-(2, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:12'),
-(3, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:18'),
-(4, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:26'),
-(5, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:36'),
-(6, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:03:18'),
-(7, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:06'),
-(8, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:14'),
-(9, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:20'),
-(10, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:15:04'),
-(11, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:16:18'),
-(12, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:16:45'),
-(13, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:31'),
-(14, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:32'),
-(15, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:51'),
-(16, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:53'),
-(17, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:29:04');
+INSERT INTO `staff` (`id`, `name`, `role`, `created_at`, `expertise`) VALUES
+(1, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:01:50', ''),
+(2, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:12', ''),
+(3, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:18', ''),
+(4, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:26', ''),
+(5, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:02:36', ''),
+(6, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:03:18', ''),
+(7, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:06', ''),
+(8, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:14', ''),
+(9, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:05:20', ''),
+(10, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:15:04', ''),
+(11, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:16:18', ''),
+(12, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:16:45', ''),
+(13, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:31', ''),
+(14, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:32', ''),
+(15, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:51', ''),
+(16, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:19:53', ''),
+(17, 'Aaliyah Jash Nebab', 'Assistant', '2025-10-25 14:29:04', '');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `staff_achievements`
+--
+
+CREATE TABLE `staff_achievements` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `staff_id` int(10) UNSIGNED NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text DEFAULT NULL,
+  `date_acquired` date DEFAULT NULL,
+  `file_path` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `staff_disaster_certifications`
+--
+
+CREATE TABLE `staff_disaster_certifications` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `staff_id` int(10) UNSIGNED NOT NULL,
+  `disaster_type` varchar(150) NOT NULL,
+  `certification_title` varchar(255) NOT NULL,
+  `issued_by` varchar(255) DEFAULT NULL,
+  `date_issued` date DEFAULT NULL,
+  `file_path` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `topics`
+--
+
+CREATE TABLE `topics` (
+  `id` int(11) NOT NULL,
+  `topic_name` varchar(255) NOT NULL,
+  `category` varchar(255) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `topic_categories`
+--
+
+CREATE TABLE `topic_categories` (
+  `id` int(11) NOT NULL,
+  `name` varchar(191) NOT NULL,
+  `slug` varchar(191) NOT NULL,
+  `description` text DEFAULT NULL,
+  `visibility` enum('public','private') DEFAULT 'public',
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `topic_categories`
+--
+
+INSERT INTO `topic_categories` (`id`, `name`, `slug`, `description`, `visibility`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 'Flood Preparedness', 'flood-preparedness', 'Ghost Project', '', 7, '2025-11-02 20:15:36', NULL);
 
 -- --------------------------------------------------------
 
@@ -572,25 +715,28 @@ CREATE TABLE `training_modules` (
   `prerequisite_id` int(11) DEFAULT NULL,
   `objectives` text NOT NULL,
   `disaster_type` varchar(100) NOT NULL,
+  `topic` varchar(255) NOT NULL,
   `file_name` varchar(255) DEFAULT NULL,
   `status` enum('pending','approved','rejected') DEFAULT 'pending',
   `created_by` varchar(50) DEFAULT 'staff',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `description` text DEFAULT NULL,
   `is_mandatory` tinyint(1) NOT NULL DEFAULT 0,
-  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `category_id` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `training_modules`
 --
 
-INSERT INTO `training_modules` (`id`, `title`, `prerequisite_id`, `objectives`, `disaster_type`, `file_name`, `status`, `created_by`, `created_at`, `description`, `is_mandatory`, `updated_at`) VALUES
-(1, 'Disaster Preparedness Training and Simulation', NULL, 'BEING PREPARED', 'All Disaster Type', NULL, 'pending', 'staff', '2025-09-24 15:44:27', NULL, 0, '2025-10-31 22:55:37'),
-(2, 'Earthquake Drills', NULL, 'Being prepared for natural disaster \"Earthquake\"', 'Earthquake', NULL, 'pending', 'staff', '2025-10-25 13:34:40', NULL, 0, '2025-10-31 22:55:37'),
-(4, 'NEXTGEN IT: PREPARING FOR THE DIGITAL WORKPLACE', NULL, 'This program teaches college students to be prepared for the workplace of an IT who\'s graduating', 'All Disaster Type', 'OJT_PRACTICUM_1_NARRATIVE_REPORT__1___1__1761417487_9eecc673a6ec.pdf', 'pending', 'staff', '2025-10-25 18:38:07', NULL, 0, '2025-10-31 22:55:37'),
-(5, 'Familiarizing with AI fundamentals', NULL, 'IT\'s should familiarize to the modern world', 'All Disaster Type', 'Session_1__Familiarizing_with_AI_fundamentals_1761417589_026b0b389d69.pdf', 'pending', 'staff', '2025-10-25 18:39:49', NULL, 0, '2025-10-31 22:55:37'),
-(6, 'AI Tools, technologies, and How to leverage them', NULL, 'Leveraging the AI tools, Technologies for advance tech', 'All Disaster Type', 'Session_2__AI_Tools__Technologies__and_How_to_Leve_1761417698_87653fbe3a0f.pdf', 'pending', 'staff', '2025-10-25 18:41:38', NULL, 0, '2025-10-31 22:55:37');
+INSERT INTO `training_modules` (`id`, `title`, `prerequisite_id`, `objectives`, `disaster_type`, `topic`, `file_name`, `status`, `created_by`, `created_at`, `description`, `is_mandatory`, `updated_at`, `category_id`) VALUES
+(1, 'Disaster Preparedness Training and Simulation', NULL, 'BEING PREPARED', 'All Disaster Type', '', NULL, 'pending', 'staff', '2025-09-24 15:44:27', NULL, 0, '2025-10-31 22:55:37', NULL),
+(2, 'Earthquake Drills', NULL, 'Being prepared for natural disaster \"Earthquake\"', 'Earthquake', '', NULL, 'pending', 'staff', '2025-10-25 13:34:40', NULL, 0, '2025-10-31 22:55:37', NULL),
+(4, 'NEXTGEN IT: PREPARING FOR THE DIGITAL WORKPLACE', NULL, 'This program teaches college students to be prepared for the workplace of an IT who\'s graduating', 'All Disaster Type', '', 'OJT_PRACTICUM_1_NARRATIVE_REPORT__1___1__1761417487_9eecc673a6ec.pdf', 'pending', 'staff', '2025-10-25 18:38:07', NULL, 0, '2025-10-31 22:55:37', NULL),
+(5, 'Familiarizing with AI fundamentals', NULL, 'IT\'s should familiarize to the modern world', 'All Disaster Type', '', 'Session_1__Familiarizing_with_AI_fundamentals_1761417589_026b0b389d69.pdf', 'pending', 'staff', '2025-10-25 18:39:49', NULL, 0, '2025-10-31 22:55:37', NULL),
+(6, 'AI Tools, technologies, and How to leverage them', NULL, 'Leveraging the AI tools, Technologies for advance tech', 'All Disaster Type', '', 'Session_2__AI_Tools__Technologies__and_How_to_Leve_1761417698_87653fbe3a0f.pdf', 'pending', 'staff', '2025-10-25 18:41:38', NULL, 0, '2025-10-31 22:55:37', NULL),
+(7, 'Lesson ', NULL, 'Auto-created objectives', 'General', '', NULL, 'pending', 'staff', '2025-11-02 16:22:25', NULL, 0, '2025-11-02 16:22:25', NULL);
 
 -- --------------------------------------------------------
 
@@ -608,6 +754,22 @@ CREATE TABLE `training_programs` (
   `example` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `training_progress`
+--
+
+CREATE TABLE `training_progress` (
+  `id` int(11) NOT NULL,
+  `participant_id` int(11) NOT NULL,
+  `module_id` int(11) NOT NULL,
+  `status` enum('not_started','in_progress','completed') NOT NULL DEFAULT 'not_started',
+  `progress_percentage` int(11) NOT NULL DEFAULT 0,
+  `started_at` datetime DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -645,7 +807,9 @@ CREATE TABLE `users` (
   `full_name` varchar(150) DEFAULT NULL,
   `email` varchar(150) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `user_type` enum('admin','staff','participant') NOT NULL DEFAULT 'participant'
+  `user_type` enum('admin','staff','participant') NOT NULL DEFAULT 'participant',
+  `avatar` varchar(255) DEFAULT NULL,
+  `name` varchar(191) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -679,10 +843,33 @@ ALTER TABLE `drills`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `learning_objectives`
+--
+ALTER TABLE `learning_objectives`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `module_id` (`module_id`);
+
+--
 -- Indexes for table `lessons`
 --
 ALTER TABLE `lessons`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `title` (`title`);
+
+--
+-- Indexes for table `modules`
+--
+ALTER TABLE `modules`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `slug` (`slug`);
+
+--
+-- Indexes for table `module_categories`
+--
+ALTER TABLE `module_categories`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_module_cat` (`module_table`,`module_id`,`category_id`),
+  ADD KEY `fk_module_categories_category` (`category_id`);
 
 --
 -- Indexes for table `module_postings`
@@ -690,6 +877,13 @@ ALTER TABLE `lessons`
 ALTER TABLE `module_postings`
   ADD PRIMARY KEY (`id`),
   ADD KEY `lesson_id` (`lesson_id`);
+
+--
+-- Indexes for table `module_staff_assignments`
+--
+ALTER TABLE `module_staff_assignments`
+  ADD PRIMARY KEY (`module_id`,`staff_id`),
+  ADD KEY `staff_id` (`staff_id`);
 
 --
 -- Indexes for table `notifications`
@@ -796,6 +990,35 @@ ALTER TABLE `staff`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `staff_achievements`
+--
+ALTER TABLE `staff_achievements`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_ach_staff` (`staff_id`);
+
+--
+-- Indexes for table `staff_disaster_certifications`
+--
+ALTER TABLE `staff_disaster_certifications`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_cert_staff` (`staff_id`);
+
+--
+-- Indexes for table `topics`
+--
+ALTER TABLE `topics`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `topic_name` (`topic_name`);
+
+--
+-- Indexes for table `topic_categories`
+--
+ALTER TABLE `topic_categories`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `name` (`name`),
+  ADD UNIQUE KEY `slug` (`slug`);
+
+--
 -- Indexes for table `training_completion`
 --
 ALTER TABLE `training_completion`
@@ -815,6 +1038,14 @@ ALTER TABLE `training_modules`
 --
 ALTER TABLE `training_programs`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `training_progress`
+--
+ALTER TABLE `training_progress`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_participant` (`participant_id`),
+  ADD KEY `idx_module` (`module_id`);
 
 --
 -- Indexes for table `training_variables`
@@ -858,10 +1089,28 @@ ALTER TABLE `drills`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT for table `learning_objectives`
+--
+ALTER TABLE `learning_objectives`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `lessons`
 --
 ALTER TABLE `lessons`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT for table `modules`
+--
+ALTER TABLE `modules`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `module_categories`
+--
+ALTER TABLE `module_categories`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `module_postings`
@@ -960,6 +1209,30 @@ ALTER TABLE `staff`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
+-- AUTO_INCREMENT for table `staff_achievements`
+--
+ALTER TABLE `staff_achievements`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `staff_disaster_certifications`
+--
+ALTER TABLE `staff_disaster_certifications`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `topics`
+--
+ALTER TABLE `topics`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `topic_categories`
+--
+ALTER TABLE `topic_categories`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
 -- AUTO_INCREMENT for table `training_completion`
 --
 ALTER TABLE `training_completion`
@@ -969,13 +1242,19 @@ ALTER TABLE `training_completion`
 -- AUTO_INCREMENT for table `training_modules`
 --
 ALTER TABLE `training_modules`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `training_programs`
 --
 ALTER TABLE `training_programs`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `training_progress`
+--
+ALTER TABLE `training_progress`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `training_variables`
@@ -1001,10 +1280,29 @@ ALTER TABLE `assessment_questions`
   ADD CONSTRAINT `fk_assessment` FOREIGN KEY (`assessment_id`) REFERENCES `assessments` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `learning_objectives`
+--
+ALTER TABLE `learning_objectives`
+  ADD CONSTRAINT `fk_learning_objectives_module` FOREIGN KEY (`module_id`) REFERENCES `training_modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `module_categories`
+--
+ALTER TABLE `module_categories`
+  ADD CONSTRAINT `fk_module_categories_category` FOREIGN KEY (`category_id`) REFERENCES `topic_categories` (`id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `module_postings`
 --
 ALTER TABLE `module_postings`
   ADD CONSTRAINT `module_postings_ibfk_1` FOREIGN KEY (`lesson_id`) REFERENCES `lessons` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `module_staff_assignments`
+--
+ALTER TABLE `module_staff_assignments`
+  ADD CONSTRAINT `module_staff_assignments_ibfk_1` FOREIGN KEY (`module_id`) REFERENCES `training_modules` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `module_staff_assignments_ibfk_2` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `participant_records`
@@ -1046,10 +1344,29 @@ ALTER TABLE `records`
   ADD CONSTRAINT `fk_records_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
 
 --
+-- Constraints for table `staff_achievements`
+--
+ALTER TABLE `staff_achievements`
+  ADD CONSTRAINT `fk_ach_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `staff_disaster_certifications`
+--
+ALTER TABLE `staff_disaster_certifications`
+  ADD CONSTRAINT `fk_cert_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Constraints for table `training_modules`
 --
 ALTER TABLE `training_modules`
   ADD CONSTRAINT `fk_training_modules_prerequisite` FOREIGN KEY (`prerequisite_id`) REFERENCES `training_modules` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
+-- Constraints for table `training_progress`
+--
+ALTER TABLE `training_progress`
+  ADD CONSTRAINT `fk_trainingprogress_module` FOREIGN KEY (`module_id`) REFERENCES `training_modules` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_trainingprogress_participant` FOREIGN KEY (`participant_id`) REFERENCES `participants` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

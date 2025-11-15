@@ -1,482 +1,431 @@
 <?php
+// admin_records_ui.php
+// Modernized UI for Training & Simulation Records (Admin)
+// Single-file update. Includes search, filters, CSV export, modal preview,
+// independent scrolling area, and polished Tailwind UI.
+
 session_start();
 
-// -------------------------
-// Database connection
-// -------------------------
+// =========================
+// Database Connection
+// =========================
 $host = "localhost";
 $user = "root";
 $pass = "";
 $db   = "training_management";
 
 $conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
+if ($conn->connect_error) {
+    die("Database connection failed: " . htmlspecialchars($conn->connect_error));
+}
 
-// -------------------------
-// Security check
-// -------------------------
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+// ----------------------
+// AUTH CHECK
+// ----------------------
+if (!isset($_SESSION['id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header("Location: ../auth/login.php");
     exit;
 }
 
-// -------------------------
-// Helpers (insights & styles)
-// -------------------------
-function generateInsight(float $completionRate, float $avgScore): string {
-    if ($completionRate === 0 && $avgScore === 0) {
-        return "No learner data yet. Consider assigning this module to learners or attaching quizzes/resources.";
-    }
-    if ($completionRate < 50) {
-        return "Low completion rate detected. Consider shortening the module, breaking content into smaller lessons, or adding reminders/notifications.";
-    }
-    if ($avgScore < 60) {
-        return "Low average quiz score. Review the learning materials for clarity, add examples, or update quiz questions to better match learning objectives.";
-    }
-    if ($avgScore < 75) {
-        return "Average performance is moderate. Consider adding interactive activities, knowledge checks, or short videos to reinforce concepts.";
-    }
-    return "Module performing well. Maintain current approach and periodically review quiz/pass thresholds.";
-}
-function progressColorClass(float $rate): string {
-    if ($rate < 50) return 'text-red-600';
-    if ($rate < 75) return 'text-yellow-600';
-    return 'text-green-600';
-}
+// ----------------------
+// Helpers
+// ----------------------
+function esc($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
-// -------------------------
-// Decide which completion source exists
-// -------------------------
-$has_completion_table = false;
-$check = $conn->query("SHOW TABLES LIKE 'training_completion'");
-if ($check && $check->num_rows > 0) $has_completion_table = true;
+// ----------------------
+// CSV Export (current filters)
+// ----------------------
+$search = trim($_GET['q'] ?? '');
+$statusFilter = trim($_GET['status'] ?? '');
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    // Build same query as below but output CSV
+    $where = [];
+    $types = '';
+    $params = [];
 
-// -------------------------
-// Fetch modules with completion summary
-// -------------------------
-$completion_stats = [];
-if ($has_completion_table) {
+    if ($search !== '') {
+        $where[] = "(p.name LIKE ? OR pr.other_reference LIKE ?)";
+        $types .= 'ss';
+        $like = '%' . $search . '%';
+        $params[] = $like; $params[] = $like;
+    }
+    if ($statusFilter !== '') {
+        $where[] = "pr.status = ?";
+        $types .= 's';
+        $params[] = $statusFilter;
+    }
+    $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
     $sql = "
-      SELECT tm.id AS module_id, tm.title, tm.description,
-             COUNT(tc.user_id) AS total_learners,
-             SUM(CASE WHEN tc.status = 'Completed' THEN 1 ELSE 0 END) AS completed,
-             SUM(CASE WHEN tc.status = 'In Progress' THEN 1 ELSE 0 END) AS in_progress
-      FROM training_modules tm
-      LEFT JOIN training_completion tc ON tm.id = tc.module_id
-      GROUP BY tm.id
-      ORDER BY tm.id ASC
+      SELECT 
+        pr.id AS record_id,
+        p.id AS participant_id,
+        p.name AS full_name,
+        COALESCE(pr.training_module,'-') AS training_module,
+        COALESCE(pr.program_name,'-') AS program_name,
+        COALESCE(pr.simulation_title,'-') AS simulation_title,
+        COALESCE(pr.score, '') AS score,
+        COALESCE(pr.status, '') AS status,
+        COALESCE(pr.created_at, '') AS created_at
+      FROM participant_records pr
+      LEFT JOIN participants p ON pr.participant_id = p.id
+      $where_sql
+      ORDER BY pr.id DESC
     ";
-} else {
-    // fallback using quiz_results
-    $sql = "
-      SELECT tm.id AS module_id, tm.title, tm.description,
-             COUNT(DISTINCT qr.participant_id) AS total_learners,
-             SUM(CASE WHEN qr.status = 'Passed' THEN 1 ELSE 0 END) AS completed,
-             0 AS in_progress
-      FROM training_modules tm
-      LEFT JOIN quiz_results qr ON tm.id = qr.lesson_id
-      GROUP BY tm.id
-      ORDER BY tm.id ASC
-    ";
-}
-$res = $conn->query($sql);
-if ($res) {
-    while ($r = $res->fetch_assoc()) {
-        $r['total_learners'] = (int)($r['total_learners'] ?? 0);
-        $r['completed'] = (int)($r['completed'] ?? 0);
-        $r['in_progress'] = (int)($r['in_progress'] ?? 0);
-        $completion_stats[] = $r;
+
+    $stmt = $conn->prepare($sql);
+    if ($stmt) {
+        if ($params) $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $res = $stmt->get_result();
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=training_records.csv');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['record_id','participant_id','full_name','training_module','program_name','simulation_title','score','status','created_at']);
+        while ($row = $res->fetch_assoc()) {
+            fputcsv($out, [
+                $row['record_id'],
+                $row['participant_id'],
+                $row['full_name'],
+                $row['training_module'],
+                $row['program_name'],
+                $row['simulation_title'],
+                $row['score'],
+                $row['status'],
+                $row['created_at']
+            ]);
+        }
+        fclose($out);
+        exit;
+    } else {
+        header('HTTP/1.1 500 Internal Server Error');
+        echo "Failed to prepare CSV query.";
+        exit;
     }
 }
 
-// -------------------------
-// Module quiz effectiveness (avg score + attempts)
-// -------------------------
-$module_effectiveness = [];
-$res2 = $conn->query("
-    SELECT tm.id, tm.title,
-           ROUND(AVG(qr.score),2) AS avg_score,
-           COUNT(qr.participant_id) AS attempts
-    FROM training_modules tm
-    LEFT JOIN quiz_results qr ON tm.id = qr.lesson_id
-    GROUP BY tm.id
-    ORDER BY tm.id ASC
-");
-if ($res2) {
-    while ($r = $res2->fetch_assoc()) {
-        $r['avg_score'] = $r['avg_score'] !== null ? (float)$r['avg_score'] : 0.0;
-        $r['attempts'] = (int)($r['attempts'] ?? 0);
-        $module_effectiveness[$r['id']] = $r;
+// ----------------------
+// Build search/filter query (prepared)
+// ----------------------
+$where = [];
+$types = '';
+$params = [];
+
+if ($search !== '') {
+    // search participant name or any other reference column (some installs store other reference columns)
+    $where[] = "(p.name LIKE ? OR pr.other_reference LIKE ?)";
+    $types .= 'ss';
+    $like = '%' . $search . '%';
+    $params[] = $like; $params[] = $like;
+}
+if ($statusFilter !== '') {
+    $where[] = "pr.status = ?";
+    $types .= 's';
+    $params[] = $statusFilter;
+}
+$where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+// Build main query (select common columns; use COALESCE for missing DB data)
+$sql = "
+    SELECT 
+        pr.id AS record_id,
+        pr.participant_id,
+        COALESCE(p.name, '') AS full_name,
+        COALESCE(pr.training_module, '') AS training_module,
+        COALESCE(pr.program_name, '') AS program_name,
+        COALESCE(pr.simulation_title, '') AS simulation_title,
+        COALESCE(pr.score, '') AS score,
+        COALESCE(pr.status, '') AS status,
+        COALESCE(pr.created_at, '') AS created_at
+    FROM participant_records pr
+    LEFT JOIN participants p ON pr.participant_id = p.id
+    $where_sql
+    ORDER BY pr.id DESC
+    LIMIT 1000
+";
+
+$stmt = $conn->prepare($sql);
+if ($stmt === false) {
+    die("Query prepare failed: " . esc($conn->error));
+}
+if ($params) $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$result = $stmt->get_result();
+$records = $result->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+// ----------------------
+// Summary counts for cards
+// ----------------------
+$counts = ['total' => 0, 'completed' => 0, 'in_progress' => 0, 'failed' => 0];
+$countSql = "SELECT 
+    COUNT(*) AS total,
+    SUM(pr.status = 'completed') AS completed,
+    SUM(pr.status = 'in-progress') AS in_progress,
+    SUM(pr.status = 'failed') AS failed
+  FROM participant_records pr
+  LEFT JOIN participants p ON pr.participant_id = p.id
+  $where_sql
+";
+$cstmt = $conn->prepare($countSql);
+if ($cstmt) {
+    if ($params) $cstmt->bind_param($types, ...$params);
+    $cstmt->execute();
+    $cres = $cstmt->get_result()->fetch_assoc();
+    if ($cres) {
+        $counts['total'] = (int)$cres['total'];
+        $counts['completed'] = (int)$cres['completed'];
+        $counts['in_progress'] = (int)$cres['in_progress'];
+        $counts['failed'] = (int)$cres['failed'];
     }
+    $cstmt->close();
 }
 
-// -------------------------
-// Overall quiz summary
-// -------------------------
-$quiz_summary = ['total'=>0, 'passed'=>0, 'failed'=>0, 'avg_score'=>0.0];
-$res3 = $conn->query("
-    SELECT COUNT(*) AS total,
-           SUM(CASE WHEN status='Passed' THEN 1 ELSE 0 END) AS passed,
-           SUM(CASE WHEN status='Failed' THEN 1 ELSE 0 END) AS failed,
-           ROUND(AVG(score),2) AS avg_score
-    FROM quiz_results
-");
-if ($res3 && ($row = $res3->fetch_assoc())) {
-    $quiz_summary['total'] = (int)$row['total'];
-    $quiz_summary['passed'] = (int)$row['passed'];
-    $quiz_summary['failed'] = (int)$row['failed'];
-    $quiz_summary['avg_score'] = $row['avg_score'] !== null ? (float)$row['avg_score'] : 0.0;
+// ----------------------
+// AJAX: fetch single record details for modal
+// ----------------------
+if (isset($_GET['fetch_record']) && is_numeric($_GET['fetch_record'])) {
+    $id = (int)$_GET['fetch_record'];
+    $q = $conn->prepare("
+        SELECT pr.*, p.name AS participant_name
+        FROM participant_records pr
+        LEFT JOIN participants p ON pr.participant_id = p.id
+        WHERE pr.id = ? LIMIT 1
+    ");
+    $q->bind_param('i', $id);
+    $q->execute();
+    $data = $q->get_result()->fetch_assoc();
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($data ?: []);
+    exit;
 }
 ?>
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Admin — Module Analytics</title>
+  <meta charset="utf-8">
+  <title>Training & Simulation Records — Admin</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    :root{--card-radius:.9rem}
-    body { background:#f8fafc; margin:0; min-height:100vh; }
-    /* main independent scroll + transitions for layout adjustments */
-    main { height: 100vh; overflow: hidden; display: flex; flex-direction: column; transition: margin-left .18s ease, padding-top .18s ease; position: relative; z-index:1; }
-    .content { overflow: auto; padding: 1.25rem; box-sizing: border-box; max-height: 100vh; }
-    .modules-grid { gap: 1.25rem; }
-    .module-card { border-radius: var(--card-radius); transition: transform .12s ease, box-shadow .12s ease; }
-    .module-card:hover { transform: translateY(-6px); box-shadow: 0 10px 28px rgba(2,6,23,0.06); }
-    /* table/list container independent scroll */
-    .list-scroll { max-height: 56vh; overflow: auto; }
-    .radial { font-weight:700; font-size:.95rem; display:flex; align-items:center; justify-content:center; width:72px; height:72px; border-radius:999px; background:rgba(0,0,0,0.03); }
-    .small { font-size:.85rem; }
-
-    /* aggressive safety: if sidebar overlaps, these help preserve content visibility */
-    #adminMain { background: transparent; }
-    @media (max-width: 1024px) {
-      main { margin-left: 0 !important; padding-top: 0 !important; }
-      .content { padding: 1rem; }
-    }
+    html,body{height:100%}
+    .app{display:flex;height:100vh;overflow:hidden;background:#f1f5f9}
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    /* independent scrolling for main area below header */
+    .main-scroll{flex:1;overflow:auto;padding:1.25rem}
+    .card-scroll{max-height:56vh;overflow:auto}
+    .sticky-head thead th { position: sticky; top: 0; background: white; z-index: 10; }
+    /* small scrollbar styling */
+    .main-scroll::-webkit-scrollbar{width:10px}
+    .main-scroll::-webkit-scrollbar-thumb{background-color:rgba(2,6,23,0.06);border-radius:8px}
   </style>
 </head>
-<body class="font-sans text-gray-800">
+<body class="font-sans text-slate-800">
 
+<div class="app">
   <!-- Sidebar -->
-  <?php include '../sidebar.php'; ?>
+  <?php include "../sidebar.php"; ?>
 
-  <!-- Main -->
-  <main class="flex-1 flex flex-col" id="adminMain">
+  <div class="main">
     <header class="bg-white border-b px-6 py-4 flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-sky-700">📋 Module Completion & Effectiveness</h1>
-        <p class="text-sm text-gray-600 mt-1">Use these insights to improve content and learning flow.</p>
+        <h1 class="text-2xl font-semibold">Training & Simulation Records</h1>
+        <div class="text-sm text-slate-500">Overview of participants' training, simulations and scores</div>
       </div>
       <div class="flex items-center gap-3">
-        <div class="text-sm text-gray-600">Admin: <span class="font-medium"><?= isset($_SESSION['name']) ? htmlspecialchars($_SESSION['name']) : 'Admin' ?></span></div>
-        <div class="text-sm text-gray-400"><?= date('F j, Y, g:i A') ?></div>
+        <form method="GET" class="flex items-center gap-2" id="filterForm">
+          <input type="search" name="q" value="<?= esc($search) ?>" placeholder="Search participant..." class="px-3 py-2 border rounded-lg w-64" />
+          <select name="status" class="px-3 py-2 border rounded-lg">
+            <option value="">All statuses</option>
+            <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : '' ?>>Completed</option>
+            <option value="in-progress" <?= $statusFilter === 'in-progress' ? 'selected' : '' ?>>In-progress</option>
+            <option value="failed" <?= $statusFilter === 'failed' ? 'selected' : '' ?>>Failed</option>
+          </select>
+          <button type="submit" class="px-3 py-2 bg-sky-600 text-white rounded-lg">Apply</button>
+          <a href="?<?= http_build_query(array_merge($_GET, ['export'=>'csv'])) ?>" class="px-3 py-2 bg-gray-100 rounded-lg text-sm">Export CSV</a>
+        </form>
       </div>
     </header>
 
-    <div class="content" id="adminContent">
-      <section class="max-w-7xl mx-auto">
+    <main class="main-scroll">
+      <div class="max-w-7xl mx-auto space-y-6">
 
-        <!-- top summary -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div class="bg-white p-4 rounded-lg module-card">
-            <p class="text-xs text-gray-500">Total Quiz Attempts</p>
-            <p class="text-2xl font-bold text-sky-600"><?= number_format($quiz_summary['total']) ?></p>
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-white p-4 rounded-2xl shadow flex items-center justify-between">
+            <div>
+              <div class="text-sm text-slate-500">Total Records</div>
+              <div class="text-2xl font-bold"><?= esc($counts['total']) ?></div>
+            </div>
+            <div><i data-lucide="file-text" class="w-8 h-8 text-sky-600"></i></div>
           </div>
-          <div class="bg-white p-4 rounded-lg module-card">
-            <p class="text-xs text-gray-500">Passed</p>
-            <p class="text-2xl font-bold text-green-600"><?= number_format($quiz_summary['passed']) ?></p>
+
+          <div class="bg-white p-4 rounded-2xl shadow flex items-center justify-between">
+            <div>
+              <div class="text-sm text-slate-500">Completed</div>
+              <div class="text-2xl font-bold text-emerald-600"><?= esc($counts['completed']) ?></div>
+            </div>
+            <div><i data-lucide="check-circle" class="w-8 h-8 text-emerald-600"></i></div>
           </div>
-          <div class="bg-white p-4 rounded-lg module-card">
-            <p class="text-xs text-gray-500">Failed</p>
-            <p class="text-2xl font-bold text-red-600"><?= number_format($quiz_summary['failed']) ?></p>
-          </div>
-          <div class="bg-white p-4 rounded-lg module-card">
-            <p class="text-xs text-gray-500">Avg Quiz Score</p>
-            <p class="text-2xl font-bold text-purple-600"><?= round($quiz_summary['avg_score'],2) ?>%</p>
-          </div>
-        </div>
 
-        <!-- controls -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-          <div class="flex items-center gap-3 w-full md:w-2/3">
-            <input id="search" oninput="filterModules()" placeholder="Search modules or type id..." class="w-full md:w-1/2 border rounded px-3 py-2 focus:outline-none" />
-            <select id="sort" onchange="sortModules()" class="border rounded px-3 py-2">
-              <option value="id_asc">ID ↑</option>
-              <option value="id_desc">ID ↓</option>
-              <option value="title_asc">Title A→Z</option>
-              <option value="title_desc">Title Z→A</option>
-              <option value="completion_desc">Completion % ↓</option>
-            </select>
-            <button onclick="exportCSV()" class="ml-2 px-3 py-2 rounded bg-sky-600 text-white">Export CSV</button>
-          </div>
-          <div class="text-sm text-gray-500">Modules: <strong><?= number_format(count($completion_stats)) ?></strong></div>
-        </div>
-
-        <!-- modules grid + list scroll (independent) -->
-        <div class="list-scroll">
-          <div id="modulesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 modules-grid">
-            <?php if (empty($completion_stats)): ?>
-              <div class="col-span-full bg-white p-6 rounded-lg text-center text-gray-600">No training modules found. Please add training modules.</div>
-            <?php else: ?>
-              <?php foreach ($completion_stats as $m):
-                $total = (int)$m['total_learners'];
-                $completed = (int)$m['completed'];
-                $in_progress = (int)$m['in_progress'];
-                $completionRate = $total > 0 ? round(($completed / $total) * 100, 2) : 0.0;
-
-                $eff = $module_effectiveness[$m['module_id']] ?? ['avg_score' => 0.0, 'attempts' => 0];
-                $avgScore = (float)($eff['avg_score'] ?? 0.0);
-                $attempts = (int)($eff['attempts'] ?? 0);
-
-                $insight = generateInsight($completionRate, $avgScore);
-                $colorClass = progressColorClass($completionRate);
-              ?>
-              <article class="bg-white p-5 module-card rounded-lg" data-title="<?= htmlspecialchars(strtolower($m['title'])) ?>" data-id="<?= intval($m['module_id']) ?>" data-completion="<?= $completionRate ?>">
-                <div class="flex gap-4">
-                  <div class="radial <?= $colorClass ?>">
-                    <?= $completionRate ?>%
-                  </div>
-
-                  <div class="flex-1">
-                    <h3 class="text-lg font-semibold"><?= htmlspecialchars($m['title']) ?></h3>
-                    <p class="text-xs text-gray-500 mt-1">
-                      <strong><?= $completed ?></strong> completed &middot; <strong><?= $in_progress ?></strong> in progress &middot; <strong><?= $total ?></strong> learners
-                    </p>
-
-                    <div class="mt-3 grid grid-cols-2 gap-2">
-                      <div class="p-3 bg-gray-50 rounded border">
-                        <p class="text-xs text-gray-500">Avg Quiz Score</p>
-                        <p class="text-lg font-bold text-purple-600"><?= round($avgScore,2) ?>%</p>
-                        <p class="text-xs text-gray-400"><?= number_format($attempts) ?> attempts</p>
-                      </div>
-                      <div class="p-3 bg-gray-50 rounded border">
-                        <p class="text-xs text-gray-500">Status</p>
-                        <?php
-                          if ($completionRate === 0.0 && $avgScore === 0.0) {
-                            $statusLabel = "<span class='text-gray-500 font-semibold'>No data</span>";
-                          } elseif ($completionRate < 50 || $avgScore < 60) {
-                            $statusLabel = "<span class='text-red-600 font-semibold'>Needs Improvement</span>";
-                          } elseif ($avgScore < 75) {
-                            $statusLabel = "<span class='text-yellow-600 font-semibold'>Moderate</span>";
-                          } else {
-                            $statusLabel = "<span class='text-green-600 font-semibold'>Good</span>";
-                          }
-                        ?>
-                        <div class="mt-1"><?= $statusLabel ?></div>
-                      </div>
-                    </div>
-
-                    <div class="mt-3 bg-gray-50 p-3 rounded border-l-4 border-sky-400">
-                      <p class="text-sm text-gray-700"><?= htmlspecialchars($insight) ?></p>
-                    </div>
-
-                    <div class="mt-3 flex gap-2">
-                      <a href="../admin/module_edit.php?module_id=<?= urlencode($m['module_id']) ?>" class="px-3 py-1 rounded bg-sky-600 text-white text-sm">Edit</a>
-                      <a href="../admin/module_resources.php?module_id=<?= urlencode($m['module_id']) ?>" class="px-3 py-1 rounded border bg-white text-sm">Resources</a>
-                      <button onclick="previewModule(<?= intval($m['module_id']) ?>)" class="px-3 py-1 rounded border bg-white text-sm">Preview</button>
-                    </div>
-                  </div>
-                </div>
-              </article>
-              <?php endforeach; ?>
-            <?php endif; ?>
+          <div class="bg-white p-4 rounded-2xl shadow flex items-center justify-between">
+            <div>
+              <div class="text-sm text-slate-500">In progress</div>
+              <div class="text-2xl font-bold text-amber-500"><?= esc($counts['in_progress']) ?></div>
+            </div>
+            <div><i data-lucide="clock" class="w-8 h-8 text-amber-500"></i></div>
           </div>
         </div>
 
-      </section>
-    </div>
-  </main>
+        <!-- Table -->
+        <div class="bg-white rounded-2xl shadow overflow-hidden">
+          <div class="p-4 border-b flex items-center justify-between">
+            <div class="font-semibold text-lg">Participant Records</div>
+            <div class="text-sm text-slate-500">Showing up to 1000 results</div>
+          </div>
 
-  <!-- Modal preview -->
-  <div id="previewModal" class="fixed inset-0 hidden z-50 items-center justify-center bg-black/40">
-    <div class="bg-white rounded-lg w-11/12 md:w-2/3 p-5 max-h-[80vh] overflow-auto">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="text-lg font-semibold">Module Preview</h3>
-        <button onclick="closePreview()" class="text-gray-600">✕</button>
+          <div class="p-4 overflow-auto card-scroll">
+            <table class="min-w-full text-sm sticky-head">
+              <thead>
+                <tr class="bg-slate-50 text-slate-700 text-xs uppercase">
+                  <th class="p-3 text-left">Participant</th>
+                  <th class="p-3 text-left">Training Module</th>
+                  <th class="p-3 text-left">Program</th>
+                  <th class="p-3 text-left">Simulation</th>
+                  <th class="p-3 text-left">Score</th>
+                  <th class="p-3 text-left">Status</th>
+                  <th class="p-3 text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if (!empty($records)): ?>
+                  <?php foreach ($records as $rec): ?>
+                    <?php
+                      $status = $rec['status'] ?? '';
+                      $statusClass = $status === 'completed' ? 'bg-emerald-600' : ($status === 'in-progress' ? 'bg-amber-500' : ($status === 'failed' ? 'bg-rose-600' : 'bg-slate-400'));
+                      $scoreText = ($rec['score'] === '' || $rec['score'] === null) ? '-' : esc($rec['score']) . '%';
+                    ?>
+                    <tr class="border-b hover:bg-gray-50">
+                      <td class="p-3 font-medium text-slate-800"><?= esc($rec['full_name'] ?: '—') ?></td>
+                      <td class="p-3"><?= esc($rec['training_module'] ?: '-') ?></td>
+                      <td class="p-3"><?= esc($rec['program_name'] ?: '-') ?></td>
+                      <td class="p-3"><?= esc($rec['simulation_title'] ?: '-') ?></td>
+                      <td class="p-3"><?= $scoreText ?></td>
+                      <td class="p-3">
+                        <span class="px-2 py-1 rounded text-white <?= $statusClass ?>"><?= esc(ucfirst($status ?: 'unknown')) ?></span>
+                      </td>
+                      <td class="p-3">
+                        <div class="flex items-center gap-2">
+                          <button class="px-3 py-1 rounded bg-sky-50 text-sky-700 view-btn" data-id="<?= (int)$rec['record_id'] ?>">View</button>
+                          <a href="mailto:?subject=Record%20for%20<?= rawurlencode($rec['full_name'] ?: '') ?>" class="px-3 py-1 rounded bg-gray-100">Email</a>
+                          <a href="?export=csv&<?= http_build_query(['q'=>$search,'status'=>$statusFilter]) ?>" class="px-3 py-1 rounded bg-gray-100">Export</a>
+                        </div>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <tr><td colspan="7" class="text-center p-6 text-slate-500">No records found for the current filters.</td></tr>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
-      <div id="previewContent" class="text-sm text-gray-700"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal for record details -->
+<div id="recordModal" class="fixed inset-0 hidden items-center justify-center z-50">
+  <div class="absolute inset-0 bg-black/40"></div>
+  <div class="relative bg-white rounded-2xl shadow-lg w-11/12 max-w-2xl z-10 overflow-hidden">
+    <div class="p-4 border-b flex items-center justify-between">
+      <h3 id="recordModalTitle" class="text-lg font-semibold">Record Details</h3>
+      <button id="recordModalClose" class="text-slate-600">&times;</button>
+    </div>
+    <div class="p-4 max-h-[60vh] overflow-auto" id="recordModalBody">
+      <div class="text-slate-500">Loading…</div>
+    </div>
+    <div class="p-4 border-t text-sm text-slate-500">
+      <div id="recordModalFooter">Actions: export / email / contact participant</div>
     </div>
   </div>
+</div>
 
 <script>
-  // client helpers
-  function filterModules() {
-    const q = document.getElementById('search').value.trim().toLowerCase();
-    document.querySelectorAll('#modulesGrid article[data-title]').forEach(a => {
-      const title = a.getAttribute('data-title') || '';
-      const id = a.getAttribute('data-id') || '';
-      if (!q || title.includes(q) || id.includes(q)) a.style.display = '';
-      else a.style.display = 'none';
+  lucide.createIcons();
+
+  // Modal logic
+  const modal = document.getElementById('recordModal');
+  const modalBody = document.getElementById('recordModalBody');
+  const modalTitle = document.getElementById('recordModalTitle');
+  const modalClose = document.getElementById('recordModalClose');
+
+  function openModalWithData(data) {
+    modalTitle.textContent = data.participant_name ? (data.participant_name + ' — Record') : 'Record Details';
+    modalBody.innerHTML = `
+      <div class="space-y-3">
+        <div><strong>Record ID:</strong> ${data.id ?? '-'}</div>
+        <div><strong>Participant:</strong> ${escapeHtml(data.participant_name ?? data.full_name ?? '-')}</div>
+        <div><strong>Training Module:</strong> ${escapeHtml(data.training_module ?? '-')}</div>
+        <div><strong>Program:</strong> ${escapeHtml(data.program_name ?? '-')}</div>
+        <div><strong>Simulation:</strong> ${escapeHtml(data.simulation_title ?? '-')}</div>
+        <div><strong>Score:</strong> ${data.score !== null ? escapeHtml(data.score + '%') : '-'}</div>
+        <div><strong>Status:</strong> ${escapeHtml(data.status ?? '-')}</div>
+        <div><strong>Notes:</strong><div class="mt-1 text-sm text-slate-600">${escapeHtml(data.notes ?? data.description ?? '-')}</div></div>
+        <div class="text-xs text-slate-400">Created: ${escapeHtml(data.created_at ?? '-')}</div>
+      </div>
+    `;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closeModal() {
+    modal.classList.remove('flex');
+    modal.classList.add('hidden');
+    modalBody.innerHTML = '';
+  }
+
+  modalClose.addEventListener('click', closeModal);
+  modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
+
+  function escapeHtml(str){
+    if (!str) return '';
+    return String(str).replace(/[&<>"'`=\/]/g, function(s){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[s]; });
+  }
+
+  // Attach click handlers for view buttons
+  document.querySelectorAll('.view-btn').forEach(btn=>{
+    btn.addEventListener('click', function(){
+      const id = this.dataset.id;
+      modalBody.innerHTML = '<div class="text-slate-500">Loading…</div>';
+      fetch('?fetch_record=' + encodeURIComponent(id))
+        .then(r => {
+          if (!r.ok) throw new Error('Network response was not ok');
+          return r.json();
+        })
+        .then(data => {
+          if (!data || Object.keys(data).length === 0) {
+            modalBody.innerHTML = '<div class="text-rose-600">Record not found.</div>';
+          } else {
+            openModalWithData(data);
+          }
+        })
+        .catch(err => {
+          modalBody.innerHTML = '<div class="text-rose-600">Failed to load record.</div>';
+          console.error(err);
+        });
     });
-  }
+  });
 
-  function sortModules() {
-    const mode = document.getElementById('sort').value;
-    const container = document.getElementById('modulesGrid');
-    const nodes = Array.from(container.children);
-    let sorted = nodes.slice();
-    sorted.sort((A,B) => {
-      const aId = parseInt(A.dataset.id||0,10), bId = parseInt(B.dataset.id||0,10);
-      const aTitle = (A.dataset.title||''), bTitle = (B.dataset.title||'');
-      const aComp = parseFloat(A.dataset.completion||0), bComp = parseFloat(B.dataset.completion||0);
-      if (mode === 'id_asc') return aId - bId;
-      if (mode === 'id_desc') return bId - aId;
-      if (mode === 'title_asc') return aTitle.localeCompare(bTitle);
-      if (mode === 'title_desc') return bTitle.localeCompare(aTitle);
-      if (mode === 'completion_desc') return bComp - aComp;
-      return 0;
-    });
-    sorted.forEach(n => container.appendChild(n));
-  }
+  // preserve filters when clicking export link in row
+  document.querySelectorAll('a[href*="export=csv"]').forEach(a=>{
+    // links are fine — no extra JS needed
+  });
 
-  function previewModule(id) {
-    const node = document.querySelector('#modulesGrid article[data-id="'+id+'"]');
-    if (!node) return;
-    const title = node.querySelector('h3').innerText;
-    const desc = node.querySelector('.mt-3 p') ? node.querySelector('.mt-3 p').innerText : '';
-    const content = "<h4 class='font-semibold mb-2'>"+escapeHtml(title)+"</h4><div class='text-sm whitespace-pre-wrap'>"+escapeHtml(desc)+"</div>";
-    document.getElementById('previewContent').innerHTML = content;
-    document.getElementById('previewModal').classList.remove('hidden');
-    document.getElementById('previewModal').classList.add('flex');
-  }
-  function closePreview() {
-    document.getElementById('previewModal').classList.add('hidden');
-    document.getElementById('previewModal').classList.remove('flex');
-  }
-  function escapeHtml(s){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
-
-  // Export visible modules to CSV
-  function exportCSV(){
-    const rows = [['Module ID','Title','Completion %','Completed','In Progress','Total Learners','Avg Score','Attempts']];
-    document.querySelectorAll('#modulesGrid article[data-id]').forEach(a=>{
-      if (a.style.display === 'none') return; // skip filtered out
-      const id = a.dataset.id||'';
-      const title = a.querySelector('h3') ? a.querySelector('h3').innerText.trim() : '';
-      const comp = a.dataset.completion || '';
-      const avg = a.querySelector('.text-lg.font-bold') ? a.querySelector('.text-lg.font-bold').innerText : '';
-      const attempts = a.querySelector('.text-xs.text-gray-400') ? a.querySelector('.text-xs.text-gray-400').innerText : '';
-      rows.push([id, title, comp, '', '', '', avg, attempts]);
-    });
-    const csv = rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join("\n");
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'module_analytics.csv'; document.body.appendChild(a); a.click();
-    URL.revokeObjectURL(url); a.remove();
-  }
-
-  // -------------------------
-  // Aggressive content-only sidebar fix
-  // -------------------------
-  (function() {
-    // selectors to attempt
-    const selectors = ['aside', '#sidebar', '.sidebar', '.sidenav', 'nav[role="navigation"]', 'nav', '[data-sidebar]'];
-
-    function numericZIndex(el) {
-      const z = window.getComputedStyle(el).zIndex;
-      const zNum = parseInt(z, 10);
-      return Number.isFinite(zNum) ? zNum : 0;
-    }
-    function rectsOverlap(a, b) {
-      return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
-    }
-
-    // Try many heuristics to find the sidebar element
-    function findSidebarCandidate() {
-      for (const sel of selectors) {
-        const candidates = Array.from(document.querySelectorAll(sel));
-        for (const el of candidates) {
-          const rect = el.getBoundingClientRect();
-          if (rect.width < 40 || rect.height < 40) continue;
-          // visible?
-          const style = window.getComputedStyle(el);
-          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
-          return el;
-        }
-      }
-      // If not found, try to find element that contains links/menus (common in sidebars)
-      const linky = Array.from(document.querySelectorAll('nav a, aside a, .menu a'));
-      if (linky.length > 4) {
-        // pick ancestor of first link that is sizable
-        let el = linky[0].closest('nav, aside, div, section');
-        if (el) return el;
-      }
-      return null;
-    }
-
-    function adjustLayoutAggressive() {
-      const main = document.getElementById('adminMain');
-      if (!main) return;
-
-      // reset first (so repeated calls are stable)
-      main.style.marginLeft = '';
-      main.style.paddingTop = '';
-
-      const sidebar = findSidebarCandidate();
-      if (!sidebar) return;
-
-      const rectS = sidebar.getBoundingClientRect();
-      const rectM = main.getBoundingClientRect();
-
-      // if the sidebar overlaps or has higher z-index than main, force adjustments
-      const sidebarZ = numericZIndex(sidebar);
-      const mainZ = numericZIndex(main);
-      const overlap = rectsOverlap(rectS, rectM);
-      const zAbove = sidebarZ > mainZ;
-
-      // Safety: don't push content off-screen on narrow screens
-      const narrow = window.innerWidth <= 1024;
-
-      // Gap to add beyond measured size
-      const gap = 12;
-
-      if (overlap || zAbove) {
-        // If sidebar sits on top near page top => push content down
-        if (rectS.top <= rectM.top + 10 && rectS.bottom > rectM.top + 4) {
-          const extra = Math.max(0, Math.ceil(rectS.bottom - rectM.top) + gap);
-          main.style.paddingTop = extra + 'px';
-        }
-
-        // If sidebar is left and extends into main => push content right
-        if (rectS.left <= rectM.left + 10 && rectS.right > rectM.left + 4 && !narrow) {
-          const extra = Math.max(0, Math.ceil(rectS.right - rectM.left) + gap);
-          main.style.marginLeft = extra + 'px';
-        }
-
-        // As fallback: if sidebar covers the left half of the screen, assign a larger margin
-        if (!narrow && rectS.width > window.innerWidth * 0.18 && rectS.right > window.innerWidth * 0.18) {
-          main.style.marginLeft = Math.ceil(rectS.right) + gap + 'px';
-        }
-      } else {
-        // If no overlap and z-order ok, ensure no forced margins
-        main.style.marginLeft = '';
-        main.style.paddingTop = '';
-      }
-
-      // Force a repaint/layout
-      main.getBoundingClientRect();
-    }
-
-    // Run multiple times (initial + after potential sidebar script loads)
-    function runWithRetries() {
-      adjustLayoutAggressive();
-      // re-run a few times to catch late-render sidebars
-      setTimeout(adjustLayoutAggressive, 200);
-      setTimeout(adjustLayoutAggressive, 600);
-      setTimeout(adjustLayoutAggressive, 1200);
-    }
-
-    window.addEventListener('load', runWithRetries);
-    window.addEventListener('resize', adjustLayoutAggressive);
-
-    // watch for sidebar being injected or changed
-    const observer = new MutationObserver(() => adjustLayoutAggressive());
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    // Expose for manual re-call if needed
-    window.adjustAdminContentLayout = adjustLayoutAggressive;
-  })();
 </script>
 </body>
 </html>

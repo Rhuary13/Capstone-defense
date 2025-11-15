@@ -14,7 +14,7 @@
         <a href="/Capstone-defense/admin/dashboard.php"
            class="flex items-center gap-4 px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 text-lg font-medium">
           <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-          <span>0 Dashboard</span>
+          <span>Dashboard</span>
         </a>
       </li>
 
@@ -24,7 +24,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="folder" class="w-5 h-5"></i>
-            <span>1 Training Module</span>
+            <span>Training Module</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -35,9 +35,7 @@
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
           <li><a href="/Capstone-defense/admin/module1/module1.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Module Creation</a></li>
-          <li><a href="/Capstone-defense/admin/module1/module1.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Topic Categorization</a></li>
-          <li><a href="/Capstone-defense/admin/module1/module1.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Quiz & Assessment</a></li>
-          <li><a href="/Capstone-defense/admin/module1/module1.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Learning Objectives</a></li>
+          <li><a href="/Capstone-defense/admin/module1/module1.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Quiz & Assessment</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.5.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Progress & Completion Tracking</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.6.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Completion Tracking</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.7.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Analytics</a></li>
@@ -50,7 +48,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="calendar" class="w-5 h-5"></i>
-            <span>2 Simulation & Event</span>
+            <span>Simulation & Event</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,7 +71,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="users" class="w-5 h-5"></i>
-            <span>3 Scenario-Based Design</span>
+            <span>Scenario-Based Design</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,10 +81,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
-          <li><a href="/Capstone-defense/admin/module3/module3.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Registration Portal</a></li>
-          <li><a href="/Capstone-defense/admin/module3/module3.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Attendance Tracking</a></li>
-          <li><a href="/Capstone-defense/admin/module3/module3.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Capacity Management</a></li>
-          <li><a href="/Capstone-defense/admin/module3/module3.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Reporting</a></li>
+          <li><a href="/Capstone-defense/admin/module3/module3.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Debriefing</a></li>
+          <li><a href="/Capstone-defense/admin/module3/module3.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Scenario Templates</a></li>
+          <li><a href="/Capstone-defense/admin/module3/module3.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Variable Configuration</a></li>
+          <li><a href="/Capstone-defense/admin/module3/module3.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Decision Points</a></li>
         </ul>
       </li>
 
@@ -96,7 +94,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="activity" class="w-5 h-5"></i>
-            <span>4 Evaluation & Scoring</span> 
+            <span>Evaluation & Scoring</span> 
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,10 +104,12 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
-          <li><a href="/Capstone-defense/admin/module4/module4.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Scenario Templates</a></li>
-          <li><a href="/Capstone-defense/admin/module4/module4.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Variable Configuration</a></li>
-          <li><a href="/Capstone-defense/admin/module4/module4.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Decision Points</a></li>
-          <li><a href="/Capstone-defense/admin/module4/module4.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Debriefing</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Criteria</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Data</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Scoring</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Reports</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Feedback</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">History</a></li>
         </ul>
       </li>
 
@@ -119,7 +119,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="check-circle" class="w-5 h-5"></i>
-            <span>5 Equipment Inventory</span>
+            <span>Equipment Inventory</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,12 +129,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
-          <li><a href="/Capstone-defense/admin/module5/module5.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Criteria</a></li>
-          <li><a href="/Capstone-defense/admin/module5/module5.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Data</a></li>
-          <li><a href="/Capstone-defense/admin/module5/module5.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Scoring</a></li>
-          <li><a href="/Capstone-defense/admin/module5/module5.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Reports</a></li>
-          <li><a href="/Capstone-defense/admin/module5/module5.5.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Feedback</a></li>
-          <li><a href="/Capstone-defense/admin/module5/module5.6.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">History</a></li>
+          <li><a href="/Capstone-defense/admin/module5/module5.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Equipment List</a></li>
+          <li><a href="/Capstone-defense/admin/module5/module5.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Gear Checkout</a></li>
+          <li><a href="/Capstone-defense/admin/module5/module5.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Maintenance Tracker</a></li>
+          <li><a href="/Capstone-defense/admin/module5/module5.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Damage Reports</a></li>
         </ul>
       </li>
 
@@ -144,7 +142,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="award" class="w-5 h-5"></i>
-            <span>6 Registration & Attendance</span> 
+            <span>Registration & Attendance</span> 
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,10 +152,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
-          <li><a href="/Capstone-defense/admin/module6/module6.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Certification Criteria</a></li>
-          <li><a href="/Capstone-defense/admin/module6/module6.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Certificate Designer</a></li>
-          <li><a href="/Capstone-defense/admin/module6/module6.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Issuance & Renewal</a></li>
-          <li><a href="/Capstone-defense/admin/module6/module6.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Credential Verification</a></li>
+          <li><a href="/Capstone-defense/admin/module6/module6.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Registration Portal</a></li>
+          <li><a href="/Capstone-defense/admin/module6/module6.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Attendance Tracking</a></li>
+          <li><a href="/Capstone-defense/admin/module6/module6.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Capacity Management</a></li>
+          <li><a href="/Capstone-defense/admin/module6/module6.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Reporting</a></li>
         </ul>
       </li>
 
@@ -167,7 +165,7 @@
                 class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-blue-500 transition-all duration-200 focus:outline-none text-lg font-medium">
           <div class="flex items-center gap-4">
             <i data-lucide="package" class="w-5 h-5"></i>
-            <span>7 Certification Issuance</span>
+            <span>Certification Issuance</span>
           </div>
           <svg :class="{'rotate-180': open}" class="w-5 h-5 transform transition-transform duration-300"
                fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,10 +175,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
-          <li><a href="/Capstone-defense/admin/module7/module7.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Equipment List</a></li>
-          <li><a href="/Capstone-defense/admin/module7/module7.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Gear Checkout</a></li>
-          <li><a href="/Capstone-defense/admin/module7/module7.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Maintenance Tracker</a></li>
-          <li><a href="/Capstone-defense/admin/module7/module7.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Damage Reports</a></li>
+          <li><a href="/Capstone-defense/admin/module7/module7.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Certification Criteria</a></li>
+          <li><a href="/Capstone-defense/admin/module7/module7.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Certificate Designer</a></li>
+          <li><a href="/Capstone-defense/admin/module7/module7.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Issuance & Renewal</a></li>
+          <li><a href="/Capstone-defense/admin/module7/module7.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Credential Verification</a></li>
         </ul>
       </li>
 
