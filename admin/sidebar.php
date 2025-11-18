@@ -36,7 +36,7 @@
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
           <li><a href="/Capstone-defense/admin/module1/module1.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Module Creation</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Quiz & Assessment</a></li>
-          <li><a href="/Capstone-defense/admin/module1/module1.5.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Progress & Completion Tracking</a></li>
+          <li><a href="/Capstone-defense/admin/module1/module1.5.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Progress Tracking</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.6.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Completion Tracking</a></li>
           <li><a href="/Capstone-defense/admin/module1/module1.7.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Analytics</a></li>
         </ul>

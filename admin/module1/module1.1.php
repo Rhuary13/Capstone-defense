@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 }
 
 /* Disaster types */
-$disaster_types = ["Earthquake","Tsunami","Volcanic Eruption","Flood","Typhoon","Cyclone","Hurricane","Tornado","Landslide","Wildfire","Other"];
+$disaster_types = ["General","Earthquake","Tsunami","Volcanic Eruption","Flood","Typhoon","Tornado","Landslide","Wildfire","Others"];
 
 /* ==========================
   RENDER MODULE CREATION
