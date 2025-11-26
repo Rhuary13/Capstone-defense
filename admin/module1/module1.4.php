@@ -1,13 +1,6 @@
 <?php
-// admin_manage_quizzes.php
-// Single-file admin UI — defensive against missing/renamed id columns
-// Place into admin/module1 and ensure ../sidebar.php exists
-
 session_start();
 
-// ------------------------
-// DB connection
-// ------------------------
 $host = "localhost";
 $user = "root";
 $pass = "";
@@ -247,7 +240,18 @@ function get_option($q, $label) {
     }
     return '';
 }
+// Pagination setup
+$items_per_page = 10; // you can change to 5, 10, 15 etc.
+$total_items = count($all_questions);
+$total_pages = ceil($total_items / $items_per_page);
 
+$current_page = isset($_GET['qpage']) ? (int)$_GET['qpage'] : 1;
+if ($current_page < 1) $current_page = 1;
+if ($current_page > $total_pages) $current_page = $total_pages;
+
+$start = ($current_page - 1) * $items_per_page;
+
+$questions_page = array_slice($all_questions, $start, $items_per_page);
 ?>
 <!doctype html>
 <html lang="en">
@@ -287,35 +291,139 @@ function get_option($q, $label) {
     </header>
 
     <main class="main-scroll">
-      <div class="max-w-6xl mx-auto space-y-6">
-        <!-- Analytics -->
-        <section class="bg-white p-6 rounded-2xl shadow grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <div>
-            <h2 class="text-lg font-semibold">Quiz Results</h2>
-            <p class="text-sm text-slate-500">Overview of recent quiz attempts</p>
-          </div>
-          <div class="flex items-center gap-6">
-            <div class="p-4 bg-slate-50 rounded-lg">
-              <div class="text-sm text-slate-500">Total attempts</div>
-              <div class="text-2xl font-bold"><?= (int)$total ?></div>
-            </div>
-            <div class="p-4 bg-emerald-50 rounded-lg">
-              <div class="text-sm text-emerald-700">Passed</div>
-              <div class="text-2xl font-bold text-emerald-700"><?= (int)$passed ?></div>
-            </div>
-            <div class="p-4 bg-rose-50 rounded-lg">
-              <div class="text-sm text-rose-700">Failed</div>
-              <div class="text-2xl font-bold text-rose-700"><?= (int)$failed ?></div>
-            </div>
-          </div>
-          <div class="text-right hidden md:block">
-            <div class="text-sm text-slate-500">Quick Actions</div>
-            <div class="mt-2 flex justify-end gap-2">
-              <a href="#upload" class="px-3 py-2 rounded bg-indigo-600 text-white">Upload Quiz File</a>
-              <button onclick="document.getElementById('questionsList').scrollIntoView({behavior:'smooth'})" class="px-3 py-2 rounded bg-slate-100">View Built-in Questions</button>
-            </div>
-          </div>
-        </section>
+      <!-- QUIZ ANALYTICS + FILE UPLOAD MODULE -->
+<div class="space-y-8">
+
+  <!-- ANALYTICS SECTION -->
+  <section class="bg-white p-6 rounded-2xl shadow-md border border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+
+    <!-- Title -->
+    <div class="space-y-1">
+      <h2 class="text-xl font-semibold text-slate-800">Quiz Results</h2>
+      <p class="text-sm text-slate-500">Overview of recent quiz attempts</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="flex items-center justify-between md:justify-start gap-4">
+      
+      <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 w-full md:w-auto">
+        <div class="text-xs text-slate-500">Total Attempts</div>
+        <div class="text-3xl font-bold text-slate-800"><?= (int)$total ?></div>
+      </div>
+
+      <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-200 w-full md:w-auto">
+        <div class="text-xs text-emerald-700">Passed</div>
+        <div class="text-3xl font-bold text-emerald-700"><?= (int)$passed ?></div>
+      </div>
+
+      <div class="p-4 bg-rose-50 rounded-xl border border-rose-200 w-full md:w-auto">
+        <div class="text-xs text-rose-700">Failed</div>
+        <div class="text-3xl font-bold text-rose-700"><?= (int)$failed ?></div>
+      </div>
+
+    </div>
+
+    <!-- Actions -->
+    <div class="text-right md:block space-y-2">
+      <div class="text-sm text-slate-500">Quick Actions</div>
+
+      <div class="flex justify-end gap-2">
+        <button onclick="openUploadModal()" 
+                class="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition">
+          Upload Quiz File
+        </button>
+
+        <button onclick="document.getElementById('questionsList').scrollIntoView({behavior:'smooth'})" 
+                class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition">
+          View Built-in Questions
+        </button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================================================================= -->
+<!-- UPLOAD QUIZ FILE MODAL -->
+<!-- ================================================================= -->
+<div id="uploadQuizModal" class="hidden fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+  <div class="bg-white rounded-2xl w-full max-w-xl p-6 shadow-xl overflow-y-auto max-h-[90vh] space-y-4 border border-slate-200">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <h3 class="text-lg font-semibold text-slate-800">Upload Quiz File</h3>
+      <button onclick="closeUploadModal()" class="text-slate-500 hover:text-slate-700 text-xl">×</button>
+    </div>
+
+    <p class="text-sm text-slate-500 -mt-2">
+      Attach PDF, DOC, or DOCX files. Stored in <code>/uploads/quiz_files</code>.
+    </p>
+
+    <!-- Alert Message -->
+    <?php if ($message): ?>
+      <div class="p-3 mb-2 rounded <?= strpos($message,'✅') === 0 
+        ? 'bg-emerald-50 border border-emerald-100 text-emerald-800' 
+        : 'bg-rose-50 border border-rose-100 text-rose-800' ?>"
+      >
+        <?= esc($message) ?>
+      </div>
+    <?php endif; ?>
+
+    <!-- Upload Form -->
+    <form method="POST" enctype="multipart/form-data" class="space-y-4">
+
+      <div>
+        <label class="text-sm font-medium block mb-1">Lesson ID (optional)</label>
+        <input type="number" name="lesson_id" 
+               class="w-full px-3 py-2 border rounded-xl" 
+               placeholder="Enter lesson ID">
+      </div>
+
+      <div>
+        <label class="text-sm font-medium block mb-1">Select File</label>
+        <input type="file" name="quiz_file" 
+               class="block w-full border rounded-xl p-2" 
+               accept=".pdf,.doc,.docx">
+      </div>
+
+      <button type="submit" 
+              class="px-4 py-2 w-full bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition">
+        Upload File
+      </button>
+
+    </form>
+
+    <!-- Recent Uploads -->
+    <?php if (count($quiz_files) > 0): ?>
+      <div class="mt-4">
+        <h4 class="text-sm font-semibold mb-2">Recent Uploads</h4>
+
+        <ul class="space-y-2 text-sm">
+          <?php foreach ($quiz_files as $f): ?>
+            <li class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+
+              <div>
+                <div class="font-medium"><?= esc($f['file_name']) ?></div>
+                <div class="text-xs text-slate-500">
+                  Lesson: <?= esc($f['lesson_id'] ?: '-') ?> • 
+                  Uploaded: <?= esc($f['uploaded_at'] ?? '') ?>
+                </div>
+              </div>
+
+              <div class="flex gap-2">
+                <a href="<?= esc($f['file_path']) ?>" target="_blank" 
+                  class="px-3 py-1 rounded bg-sky-50 text-sky-700">Open</a>
+                <a href="<?= esc($f['file_path']) ?>" download 
+                  class="px-3 py-1 rounded bg-gray-100">Download</a>
+              </div>
+
+            </li>
+          <?php endforeach; ?>
+        </ul>
+
+      </div>
+    <?php endif; ?>
+  </div>
+</div>
 
         <!-- Recent results table -->
         <section class="bg-white p-4 rounded-2xl shadow">
@@ -368,81 +476,59 @@ function get_option($q, $label) {
 
           <?php if (count($all_questions) > 0): ?>
             <ol class="space-y-4 list-decimal pl-6">
-              <?php foreach ($all_questions as $q):
-                $qText = get_question_text($q);
-                $a = get_option($q,'a');
-                $b = get_option($q,'b');
-                $c = get_option($q,'c');
-                $d = get_option($q,'d');
-                $correct = $q['correct_option'] ?? ($q['answer'] ?? '');
-              ?>
-                <li class="p-4 border rounded-lg bg-gray-50">
-                  <div class="flex items-start justify-between gap-4">
-                    <div>
-                      <p class="font-medium text-slate-800"><?= esc($qText) ?></p>
-                      <ul class="mt-2 text-sm text-slate-600">
-                        <?php if ($a !== ''): ?><li>A. <?= esc($a) ?></li><?php endif; ?>
-                        <?php if ($b !== ''): ?><li>B. <?= esc($b) ?></li><?php endif; ?>
-                        <?php if ($c !== ''): ?><li>C. <?= esc($c) ?></li><?php endif; ?>
-                        <?php if ($d !== ''): ?><li>D. <?= esc($d) ?></li><?php endif; ?>
-                      </ul>
-                      <p class="mt-2 text-sm text-emerald-700 font-semibold">Correct: <?= esc($correct) ?></p>
-                    </div>
-                    <div class="text-right">
-                      <button class="px-3 py-1 bg-slate-100 rounded view-question-btn" data-q='<?= esc(json_encode($q, JSON_HEX_APOS|JSON_HEX_QUOT)) ?>'>Preview</button>
-                    </div>
-                  </div>
-                </li>
-              <?php endforeach; ?>
-            </ol>
+<?php foreach ($questions_page as $q): ?>
+    <?php
+      $qText = get_question_text($q);
+      $a = get_option($q,'a');
+      $b = get_option($q,'b');
+      $c = get_option($q,'c');
+      $d = get_option($q,'d');
+      $correct = $q['correct_option'] ?? ($q['answer'] ?? '');
+    ?>
+    <li class="p-4 border rounded-xl bg-gray-50">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="font-medium text-slate-900"><?= esc($qText) ?></p>
+          <ul class="mt-2 text-sm text-slate-600">
+            <?php if ($a): ?><li>A. <?= esc($a) ?></li><?php endif; ?>
+            <?php if ($b): ?><li>B. <?= esc($b) ?></li><?php endif; ?>
+            <?php if ($c): ?><li>C. <?= esc($c) ?></li><?php endif; ?>
+            <?php if ($d): ?><li>D. <?= esc($d) ?></li><?php endif; ?>
+          </ul>
+          <p class="mt-2 text-sm text-emerald-600 font-semibold">Correct Answer: <?= esc($correct) ?></p>
+        </div>
+
+        <button 
+            class="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition view-question-btn"
+            data-qid="<?= $q['question_id'] ?>"
+            data-text="<?= esc($qText) ?>"
+            data-a="<?= esc($a) ?>"
+            data-b="<?= esc($b) ?>"
+            data-c="<?= esc($c) ?>"
+            data-d="<?= esc($d) ?>"
+            data-correct="<?= esc($correct) ?>"
+        >
+          Preview
+        </button>
+      </div>
+    </li>
+<?php endforeach; ?>
+</ol>
+            <!-- Pagination -->
+            <?php if ($total_pages > 1): ?>
+              <div class="mt-6 flex justify-center items-center gap-2 text-sm">
+                <?php for ($p = 1; $p <= $total_pages; $p++): ?>
+                  <?php if ($p === $current_page): ?>
+                    <span class="px-3 py-1 bg-indigo-600 text-white rounded-lg"><?= $p ?></span>
+                  <?php else: ?>
+                    <a href="?qpage=<?= $p ?>" class="px-3 py-1 bg-gray-100 rounded-lg hover:bg-gray-200"><?= $p ?></a>
+                  <?php endif; ?>
+                <?php endfor; ?>
+              </div>
+            <?php endif; ?>
+            
           <?php else: ?>
             <p class="text-slate-500">No built-in questions found. Add questions in the builder or import one.</p>
-          <?php endif; ?>
-        </section>
-
-        <!-- Upload Quiz File -->
-        <section id="upload" class="bg-white p-6 rounded-2xl shadow max-w-3xl mx-auto">
-          <h3 class="text-lg font-semibold mb-2">Upload Quiz File</h3>
-          <p class="text-sm text-slate-500 mb-4">Attach files (PDF, DOC, DOCX). Files are saved to <code>/uploads/quiz_files</code>.</p>
-
-          <?php if ($message): ?>
-            <div class="p-3 mb-4 rounded <?= strpos($message,'✅') === 0 ? 'bg-emerald-50 border border-emerald-100 text-emerald-800' : 'bg-rose-50 border border-rose-100 text-rose-800' ?>">
-              <?= esc($message) ?>
-            </div>
-          <?php endif; ?>
-
-          <form method="POST" enctype="multipart/form-data" class="space-y-4">
-            <div>
-              <label class="text-sm font-medium block mb-1">Lesson ID (optional)</label>
-              <input type="number" name="lesson_id" class="w-full px-3 py-2 border rounded" placeholder="Enter lesson ID (if applicable)" />
-            </div>
-            <div>
-              <label class="text-sm font-medium block mb-1">Select file</label>
-              <input type="file" name="quiz_file" class="block w-full" accept=".pdf,.doc,.docx" />
-            </div>
-            <div>
-              <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded">Upload File</button>
-            </div>
-          </form>
-
-          <?php if (count($quiz_files) > 0): ?>
-            <div class="mt-6">
-              <h4 class="text-sm font-semibold mb-2">Recent Uploads</h4>
-              <ul class="space-y-2 text-sm">
-                <?php foreach ($quiz_files as $f): ?>
-                  <li class="flex items-center justify-between bg-slate-50 p-2 rounded">
-                    <div>
-                      <div class="font-medium"><?= esc($f['file_name']) ?></div>
-                      <div class="text-xs text-slate-500">Lesson: <?= esc($f['lesson_id'] ?: '-') ?> • Uploaded: <?= esc($f['uploaded_at'] ?? '') ?></div>
-                    </div>
-                    <div class="flex gap-2">
-                      <a href="<?= esc($f['file_path']) ?>" target="_blank" class="px-2 py-1 rounded bg-sky-50 text-sky-700">Open</a>
-                      <a href="<?= esc($f['file_path']) ?>" download class="px-2 py-1 rounded bg-gray-100">Download</a>
-                    </div>
-                  </li>
-                <?php endforeach; ?>
-              </ul>
-            </div>
           <?php endif; ?>
         </section>
 
@@ -452,39 +538,52 @@ function get_option($q, $label) {
 </div>
 
 <!-- Modal: view question -->
-<div id="questionModal" class="fixed inset-0 hidden items-center justify-center z-50">
-  <div class="absolute inset-0 bg-black/40"></div>
-  <div class="relative bg-white rounded-2xl shadow-lg w-11/12 max-w-2xl z-10 overflow-hidden">
-    <div class="p-4 border-b flex items-center justify-between">
-      <h3 class="text-lg font-semibold" id="qModalTitle">Question Preview</h3>
-      <button id="qModalClose" class="text-slate-600">&times;</button>
+<div id="questionPreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl space-y-4">
+
+    <h3 class="text-lg font-semibold text-slate-800">Preview Question</h3>
+
+    <p id="previewQuestionText" class="font-medium text-slate-900"></p>
+
+    <ul class="text-sm space-y-1 text-slate-700">
+      <li>A. <span id="previewA"></span></li>
+      <li>B. <span id="previewB"></span></li>
+      <li>C. <span id="previewC"></span></li>
+      <li>D. <span id="previewD"></span></li>
+    </ul>
+
+    <p class="text-emerald-600 font-semibold text-sm">Correct Answer: <span id="previewCorrect"></span></p>
+
+    <div class="text-right">
+      <button onclick="document.getElementById('questionPreviewModal').classList.add('hidden')" 
+              class="px-4 py-1.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800">
+        Close
+      </button>
     </div>
-    <div class="p-4 max-h-[60vh] overflow-auto" id="qModalBody">Loading…</div>
-    <div class="p-4 border-t text-sm text-slate-500">Use this to inspect the question object & options.</div>
+
   </div>
 </div>
+
 
 <script>
   lucide.createIcons();
 
   // view question modal
-  const qModal = document.getElementById('questionModal');
-  const qModalBody = document.getElementById('qModalBody');
-  const qModalClose = document.getElementById('qModalClose');
-  document.querySelectorAll('.view-question-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const raw = btn.getAttribute('data-q');
-      try {
-        const obj = JSON.parse(raw);
-        qModalBody.innerHTML = `<pre class="whitespace-pre-wrap text-sm">${escapeHtml(JSON.stringify(obj, null, 2))}</pre>`;
-        qModal.classList.remove('hidden'); qModal.classList.add('flex');
-      } catch(e) {
-        qModalBody.innerHTML = '<div class="text-rose-600">Unable to parse question data.</div>';
-        qModal.classList.remove('hidden'); qModal.classList.add('flex');
-      }
-    });
-  });
-  qModalClose.addEventListener('click', ()=>{ qModal.classList.remove('flex'); qModal.classList.add('hidden'); });
+  document.addEventListener("click", e => {
+    if (!e.target.classList.contains("view-question-btn")) return;
+
+    const q = e.target.dataset;
+
+    document.getElementById("previewQuestionText").innerText = q.text;
+    document.getElementById("previewA").innerText = q.a;
+    document.getElementById("previewB").innerText = q.b;
+    document.getElementById("previewC").innerText = q.c;
+    document.getElementById("previewD").innerText = q.d;
+    document.getElementById("previewCorrect").innerText = q.correct;
+
+    document.getElementById("questionPreviewModal").classList.remove("hidden");
+});
+
 
   // view result button (simple viewer)
   document.querySelectorAll('.view-result-btn').forEach(b=>{
@@ -520,6 +619,12 @@ function get_option($q, $label) {
     if (!str && str !== 0) return '';
     return String(str).replace(/[&<>"'`=\/]/g, function(s){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[s]; });
   }
+  function openUploadModal() {
+  document.getElementById('uploadQuizModal').classList.remove('hidden');
+}
+function closeUploadModal() {
+  document.getElementById('uploadQuizModal').classList.add('hidden');
+}
 </script>
 
 </body>

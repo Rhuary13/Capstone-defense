@@ -59,9 +59,9 @@
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
           <li><a href="/Capstone-defense/admin/module2/module2.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Event Scheduling</a></li>
-          <li><a href="/Capstone-defense/admin/module2/module2.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Role Assignment</a></li>
-          <li><a href="/Capstone-defense/admin/module2/module2.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Safety Protocols</a></li>
-          <li><a href="/Capstone-defense/admin/module2/module2.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Notifications</a></li>
+          <li><a href="/Capstone-defense/admin/module2/module2.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Notifications & Reminder</a></li>
+          <li><a href="/Capstone-defense/admin/module2/module2.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Role Assignment</a></li>
+          <li><a href="/Capstone-defense/admin/module2/module2.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Safety Protocols</a></li>
         </ul>
       </li>
 

@@ -291,7 +291,6 @@ $participantsTarget = build_target_if_exists('participants.php');
             <div class="label">Staff</div>
             <div class="value"><?= e($k_staff) ?></div>
           </div>
-          <div class="extra">Add / Manage</div>
         </div>
 
         <div role="button" tabindex="0" data-action="open-modal" data-target="programModal" class="card-min" aria-label="Manage programs">
@@ -300,7 +299,6 @@ $participantsTarget = build_target_if_exists('participants.php');
             <div class="label">Programs</div>
             <div class="value"><?= e($k_programs) ?></div>
           </div>
-          <div class="extra">Organize</div>
         </div>
 
         <div role="button" tabindex="0" data-action="open-modal" data-target="drillModal" class="card-min" aria-label="Schedule drills">

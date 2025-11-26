@@ -196,12 +196,15 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
 
 <!-- Alerts -->
 <?php if($successMsg): ?>
-<div class="p-4 mb-4 text-green-800 bg-green-100 border border-green-300 rounded-lg"><?= htmlspecialchars($successMsg) ?></div>
+<div class="p-4 mb-6 text-green-800 bg-green-100 border border-green-300 rounded-xl shadow-sm">
+  <?= htmlspecialchars($successMsg) ?>
+</div>
 <?php endif; ?>
 
 <!-- Event Form -->
-<div class="bg-white rounded-2xl shadow-lg p-8 mb-8 max-w-4xl mx-auto transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
-  <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+<div class="bg-white rounded-2xl shadow-lg p-8 mb-12 max-w-4xl mx-auto transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
+  
+  <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
     <i data-lucide="plus-circle" class="w-6 h-6 text-blue-600"></i>
     Create / Schedule Event
   </h2>
@@ -211,7 +214,7 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
 
     <!-- Select Module -->
     <div class="relative group">
-      <select id="selectModule" name="selected_module" class="peer w-full border rounded-lg px-4 py-3 appearance-none transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md">
+      <select id="selectModule" name="selected_module" class="peer w-full border rounded-xl px-4 py-3 appearance-none transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         <option value="" hidden></option>
         <?php foreach($modules as $m): ?>
           <option value="<?= $m['id'] ?>"
@@ -234,7 +237,7 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
       <!-- Event Module / Topic -->
       <div class="relative group">
         <input type="text" id="eventTitle" name="title" placeholder=" " required
-               class="peer w-full border rounded-lg px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md">
+               class="peer w-full border rounded-xl px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         <label class="absolute left-4 top-3 text-gray-400 text-sm transition-all duration-200 peer-focus:-top-2 peer-focus:text-blue-500 peer-focus:text-sm">
           Event Module / Topic
         </label>
@@ -243,7 +246,7 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
       <!-- Disaster Type -->
       <div class="relative group">
         <select id="disasterType" name="disaster_type" required
-                class="peer w-full border rounded-lg px-4 py-3 appearance-none transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md">
+                class="peer w-full border rounded-xl px-4 py-3 appearance-none transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
           <option value="" hidden></option>
           <?php foreach($allDisasters as $type): ?>
             <option value="<?= htmlspecialchars($type) ?>"><?= htmlspecialchars($type) ?></option>
@@ -260,7 +263,7 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
       <!-- Date -->
       <div class="relative group">
         <input type="date" name="date" placeholder=" " required
-               class="peer w-full border rounded-lg px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md">
+               class="peer w-full border rounded-xl px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         <label class="absolute left-4 top-3 text-gray-400 text-sm transition-all duration-200 peer-focus:-top-2 peer-focus:text-blue-500 peer-focus:text-sm">
           Date
         </label>
@@ -269,7 +272,7 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
       <!-- Time -->
       <div class="relative group">
         <input type="time" name="time" placeholder=" " required
-               class="peer w-full border rounded-lg px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md">
+               class="peer w-full border rounded-xl px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         <label class="absolute left-4 top-3 text-gray-400 text-sm transition-all duration-200 peer-focus:-top-2 peer-focus:text-blue-500 peer-focus:text-sm">
           Time
         </label>
@@ -278,7 +281,7 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
       <!-- Duration -->
       <div class="relative group">
         <input type="number" name="duration" min="1" placeholder=" " required
-               class="peer w-full border rounded-lg px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md">
+               class="peer w-full border rounded-xl px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         <label class="absolute left-4 top-3 text-gray-400 text-sm transition-all duration-200 peer-focus:-top-2 peer-focus:text-blue-500 peer-focus:text-sm">
           Duration (hours)
         </label>
@@ -287,7 +290,7 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
       <!-- Location -->
       <div class="relative group">
         <input type="text" name="location" placeholder=" " required
-               class="peer w-full border rounded-lg px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md">
+               class="peer w-full border rounded-xl px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         <label class="absolute left-4 top-3 text-gray-400 text-sm transition-all duration-200 peer-focus:-top-2 peer-focus:text-blue-500 peer-focus:text-sm">
           Location
         </label>
@@ -296,7 +299,7 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
       <!-- Facilitator(s) -->
       <div class="relative group md:col-span-2">
         <input type="text" id="facilitator" name="facilitator" placeholder=" "
-               class="peer w-full border rounded-lg px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md">
+               class="peer w-full border rounded-xl px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
         <label class="absolute left-4 top-3 text-gray-400 text-sm transition-all duration-200 peer-focus:-top-2 peer-focus:text-blue-500 peer-focus:text-sm">
           Facilitator(s)
         </label>
@@ -306,18 +309,19 @@ main { flex: 1; overflow-y: auto; padding: 2rem; background-color: #f3f4f6; }
     <!-- Notes -->
     <div class="relative group">
       <textarea name="notes" rows="4" placeholder=" "
-                class="peer w-full border rounded-lg px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 group-hover:shadow-md"></textarea>
+                class="peer w-full border rounded-xl px-4 py-3 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
       <label class="absolute left-4 top-3 text-gray-400 text-sm transition-all duration-200 peer-focus:-top-2 peer-focus:text-blue-500 peer-focus:text-sm">
         Notes
       </label>
     </div>
 
     <button type="submit"
-            class="w-full md:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow hover:bg-blue-700 hover:shadow-xl transition-all duration-300">
+            class="w-full md:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow hover:bg-blue-700 hover:shadow-xl transition-all duration-300">
       Schedule Event
     </button>
   </form>
 </div>
+
 
 <script>
 document.getElementById('selectModule').addEventListener('change', function() {

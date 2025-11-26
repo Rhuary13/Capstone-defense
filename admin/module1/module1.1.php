@@ -159,47 +159,99 @@ function renderStaffAssignmentPanel($conn, $disaster_types, $staff_list) {
         </div>
 
         <!-- STAFF ASSIGNMENT -->
-        <h3 class="text-lg font-semibold mt-3">Assign Staff</h3>
-        <p class="text-slate-500 text-xs mb-1">Select staff qualified for the chosen disaster type.</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-80 overflow-auto">
-            <?php foreach($staff_list as $s):
-                $dq_res = $conn->query("SELECT disaster_type FROM staff_disaster_certifications WHERE staff_id=".(int)$s['id']);
-                $qualified = [];
-                if($dq_res && $dq_res->num_rows) while($dq=$dq_res->fetch_assoc()) $qualified[] = $dq['disaster_type'];
-            ?>
-            <div class="rounded-xl border border-slate-200 p-2 shadow-sm flex flex-col gap-1 hover:shadow transition text-sm">
-                <label class="flex items-center gap-1">
-                    <input type="checkbox" name="staff_ids[]" value="<?= (int)$s['id'] ?>">
-                    <strong class="text-slate-900"><?= e($s['name']) ?></strong> (<?= e($s['role']) ?>)
-                </label>
-                <p class="text-xs text-slate-500">Qualified: <?= !empty($qualified) ? e(implode(', ',$qualified)) : 'None' ?></p>
-                <button type="button" onclick="openStaffModal(<?= $s['id'] ?>)" class="mt-1 px-2 py-0.5 text-xs bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition">View Full Profile</button>
+<h3 class="text-lg font-semibold mt-3">Assign Staff</h3>
+<p class="text-slate-500 text-xs mb-1">Select staff qualified for the chosen disaster type.</p>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-auto">
+
+<?php foreach ($staff_list as $s): ?>
+
+    <?php
+        // Fetch qualified disaster certifications
+        $q = $conn->query("
+            SELECT disaster_type 
+            FROM staff_disaster_certifications 
+            WHERE staff_id=" . (int)$s['id']
+        );
+
+        $qualified = [];
+        if ($q && $q->num_rows) {
+            while ($row = $q->fetch_assoc()) {
+                $qualified[] = $row['disaster_type'];
+            }
+        }
+    ?>
+
+    <div class="rounded-xl border border-slate-200 p-3 bg-white shadow-sm hover:shadow-md transition-all flex flex-col gap-2">
+
+        <!-- Staff Checkbox -->
+        <label class="flex items-center gap-2">
+            <input type="checkbox" 
+                   name="staff_ids[]" 
+                   value="<?= (int)$s['id'] ?>"
+                   class="h-4 w-4 text-blue-600 rounded border-slate-300">
+            <div>
+                <strong class="text-slate-900"><?= e($s['name']) ?></strong>
+                <p class="text-xs text-slate-500"><?= e($s['role']) ?></p>
             </div>
-            <?php endforeach; ?>
+        </label>
+
+        <!-- Qualifications -->
+        <div class="flex flex-wrap gap-1">
+            <?php if (!empty($qualified)): ?>
+                <?php foreach ($qualified as $q): ?>
+                    <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded-full">
+                        <?= e($q) ?>
+                    </span>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <span class="text-xs text-slate-400">No certifications</span>
+            <?php endif; ?>
         </div>
 
-        <button type="submit" class="mt-4 px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition text-sm">Create Module & Assign Staff</button>
+        <!-- Profile Modal Trigger -->
+        <button type="button" 
+                onclick="openStaffModal(<?= $s['id'] ?>)"
+                class="text-xs mt-1 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+            View Training & Certifications
+        </button>
+
+    </div>
+
+<?php endforeach; ?>
+</div>
+
+
+        <button type="submit" class="mt-4 px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition text-sm">Add Module & Assign Staff</button>
     </form>
 </div>
 
 <!-- STAFF MODAL -->
-<div id="staffModal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2">
-    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-xl p-4 relative overflow-auto max-h-[90vh]">
-        <button onclick="closeStaffModal()" class="absolute top-2 right-2 text-lg hover:text-red-500">✖</button>
-        <div id="staffModalContent" class="space-y-2 text-sm"></div>
+<div id="staffModal"
+     class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-40">
+    <div class="bg-white rounded-xl w-full max-w-xl p-5 shadow-lg overflow-y-auto max-h-[80vh]">
+        
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="text-lg font-semibold text-slate-800">Staff Profile</h2>
+            <button onclick="closeStaffModal()" class="text-slate-500 hover:text-slate-700">✕</button>
+        </div>
+
+        <div id="staffModalContent" class="text-sm text-slate-700">
+            <!-- AJAX CONTENT HERE -->
+        </div>
     </div>
 </div>
 
 <script>
-function openStaffModal(id){
-    fetch("load_staff_profile.php?id="+id)
-        .then(res=>res.text())
-        .then(html=>{
+function openStaffModal(id) {
+    fetch("ajax_view_staff.php?id=" + id)
+        .then(res => res.text())
+        .then(html => {
             document.getElementById("staffModalContent").innerHTML = html;
             document.getElementById("staffModal").classList.remove("hidden");
         });
 }
-function closeStaffModal(){
+function closeStaffModal() {
     document.getElementById("staffModal").classList.add("hidden");
 }
 // Filter staff by selected disaster type
