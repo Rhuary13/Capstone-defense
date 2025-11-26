@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 15, 2025 at 06:13 AM
+-- Generation Time: Nov 26, 2025 at 04:05 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -355,6 +355,20 @@ CREATE TABLE `programs` (
   `description` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `programs`
+--
+
+INSERT INTO `programs` (`id`, `title`, `description`, `created_at`) VALUES
+(1, '1', '1', '2025-11-22 04:51:03'),
+(2, '1', '1', '2025-11-22 04:51:09'),
+(3, '1', '1', '2025-11-22 04:51:14'),
+(4, '1', '1', '2025-11-22 04:51:09'),
+(5, '1', '1', '2025-11-22 04:52:13'),
+(6, '1', '1', '2025-11-22 04:52:13'),
+(10, '1', '1', '2025-11-22 04:52:42'),
+(12, '1', '1', '2025-11-22 04:52:42');
 
 -- --------------------------------------------------------
 
@@ -736,7 +750,8 @@ INSERT INTO `training_modules` (`id`, `title`, `prerequisite_id`, `objectives`, 
 (4, 'NEXTGEN IT: PREPARING FOR THE DIGITAL WORKPLACE', NULL, 'This program teaches college students to be prepared for the workplace of an IT who\'s graduating', 'All Disaster Type', '', 'OJT_PRACTICUM_1_NARRATIVE_REPORT__1___1__1761417487_9eecc673a6ec.pdf', 'pending', 'staff', '2025-10-25 18:38:07', NULL, 0, '2025-10-31 22:55:37', NULL),
 (5, 'Familiarizing with AI fundamentals', NULL, 'IT\'s should familiarize to the modern world', 'All Disaster Type', '', 'Session_1__Familiarizing_with_AI_fundamentals_1761417589_026b0b389d69.pdf', 'pending', 'staff', '2025-10-25 18:39:49', NULL, 0, '2025-10-31 22:55:37', NULL),
 (6, 'AI Tools, technologies, and How to leverage them', NULL, 'Leveraging the AI tools, Technologies for advance tech', 'All Disaster Type', '', 'Session_2__AI_Tools__Technologies__and_How_to_Leve_1761417698_87653fbe3a0f.pdf', 'pending', 'staff', '2025-10-25 18:41:38', NULL, 0, '2025-10-31 22:55:37', NULL),
-(7, 'Lesson ', NULL, 'Auto-created objectives', 'General', '', NULL, 'pending', 'staff', '2025-11-02 16:22:25', NULL, 0, '2025-11-02 16:22:25', NULL);
+(7, 'Lesson ', NULL, 'Auto-created objectives', 'General', '', NULL, 'pending', 'staff', '2025-11-02 16:22:25', NULL, 0, '2025-11-02 16:22:25', NULL),
+(10, 'Proper use of FIRST AID', NULL, '', 'General', 'Definition and Aims of First Aid', NULL, 'pending', 'staff', '2025-11-17 21:58:45', NULL, 0, '2025-11-17 21:58:45', NULL);
 
 -- --------------------------------------------------------
 
@@ -1140,7 +1155,7 @@ ALTER TABLE `participant_records`
 -- AUTO_INCREMENT for table `programs`
 --
 ALTER TABLE `programs`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `progress`
@@ -1242,7 +1257,7 @@ ALTER TABLE `training_completion`
 -- AUTO_INCREMENT for table `training_modules`
 --
 ALTER TABLE `training_modules`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `training_programs`

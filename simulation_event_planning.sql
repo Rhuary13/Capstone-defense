@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Nov 15, 2025 at 06:13 AM
+-- Generation Time: Nov 26, 2025 at 04:05 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -124,7 +124,8 @@ CREATE TABLE `announcements` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `location_lat` decimal(10,7) DEFAULT NULL,
   `location_lng` decimal(10,7) DEFAULT NULL,
-  `compliance_approved` tinyint(1) DEFAULT 0
+  `compliance_approved` tinyint(1) DEFAULT 0,
+  `safety_procedure_id` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -181,6 +182,168 @@ CREATE TABLE `attendance_staff` (
   `status` enum('Present','Absent') NOT NULL,
   `timestamp` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `barangay_locations`
+--
+
+CREATE TABLE `barangay_locations` (
+  `id` int(11) NOT NULL,
+  `district` varchar(50) NOT NULL,
+  `barangay_name` varchar(150) NOT NULL,
+  `latitude` decimal(10,7) DEFAULT NULL,
+  `longitude` decimal(10,7) DEFAULT NULL,
+  `boundary_geojson` longtext DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `barangay_locations`
+--
+
+INSERT INTO `barangay_locations` (`id`, `district`, `barangay_name`, `latitude`, `longitude`, `boundary_geojson`, `created_at`, `updated_at`) VALUES
+(1, 'District 1', 'Alicia', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(2, 'District 1', 'Bagong Pag-asa', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(3, 'District 1', 'Bahay Toro', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(4, 'District 1', 'Balingasa', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(5, 'District 1', 'Bungad', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(6, 'District 1', 'Damar', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(7, 'District 1', 'Damayan', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(8, 'District 1', 'Del Monte', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(9, 'District 1', 'Katipunan', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(10, 'District 1', 'Lourdes', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(11, 'District 1', 'Maharlika', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(12, 'District 1', 'Manresa', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(13, 'District 1', 'Mariblo', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(14, 'District 1', 'Masambong', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(15, 'District 1', 'N. S. Amoranto (Gintong Silahis)', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(16, 'District 1', 'Nayong Kanluran', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(17, 'District 1', 'Paang Bundok', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(18, 'District 1', 'Pag-ibig sa Nayon', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(19, 'District 1', 'Paltok', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(20, 'District 1', 'Paraiso', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(21, 'District 1', 'Phil-Am', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(22, 'District 1', 'Project 6', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(23, 'District 1', 'Ramon Magsaysay', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(24, 'District 1', 'Saint Peter', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(25, 'District 1', 'Salvacion', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(26, 'District 1', 'San Antonio', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(27, 'District 1', 'San Isidro Labrador', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(28, 'District 1', 'San Jose', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(29, 'District 1', 'Santa Cruz', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(30, 'District 1', 'Santa Teresita', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(31, 'District 1', 'Sto. Cristo', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(32, 'District 1', 'Santo Domingo (Matalahib)', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(33, 'District 1', 'Siena', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(34, 'District 1', 'Talayan', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(35, 'District 1', 'Vasra', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(36, 'District 1', 'Veterans Village', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(37, 'District 1', 'West Triangle', NULL, NULL, NULL, '2025-11-25 15:50:19', '2025-11-25 15:50:19'),
+(38, 'District 2', 'Bagong Silangan', NULL, NULL, NULL, '2025-11-25 15:50:26', '2025-11-25 15:50:26'),
+(39, 'District 2', 'Batasan Hills', NULL, NULL, NULL, '2025-11-25 15:50:26', '2025-11-25 15:50:26'),
+(40, 'District 2', 'Commonwealth', NULL, NULL, NULL, '2025-11-25 15:50:26', '2025-11-25 15:50:26'),
+(41, 'District 2', 'Holy Spirit', NULL, NULL, NULL, '2025-11-25 15:50:26', '2025-11-25 15:50:26'),
+(42, 'District 2', 'Payatas', NULL, NULL, NULL, '2025-11-25 15:50:26', '2025-11-25 15:50:26'),
+(43, 'District 3', 'Amihan', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(44, 'District 3', 'Bagumbayan (Eastwood)', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(45, 'District 3', 'Bagumbuhay', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(46, 'District 3', 'Bayanihan', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(47, 'District 3', 'Blue Ridge A', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(48, 'District 3', 'Blue Ridge B', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(49, 'District 3', 'Camp Aguinaldo', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(50, 'District 3', 'Claro (Quirino 3-B)', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(51, 'District 3', 'Dioquino Zobel', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(52, 'District 3', 'Duyan-duyan', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(53, 'District 3', 'E. Rodriguez', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(54, 'District 3', 'East Kamias', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(55, 'District 3', 'Escopa I', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(56, 'District 3', 'Escopa II', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(57, 'District 3', 'Escopa III', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(58, 'District 3', 'Escopa IV', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(59, 'District 3', 'Libis', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(60, 'District 3', 'Loyola Heights', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(61, 'District 3', 'Mangga', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(62, 'District 3', 'Marilag', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(63, 'District 3', 'Masagana', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(64, 'District 3', 'Matandang Balara (Old Balara)', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(65, 'District 3', 'Milagrosa', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(66, 'District 3', 'Pansol', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(67, 'District 3', 'Quirino 2-A', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(68, 'District 3', 'Quirino 2-B', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(69, 'District 3', 'Quirino 2-C', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(70, 'District 3', 'Quirino 3-A', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(71, 'District 3', 'St. Ignatius', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(72, 'District 3', 'San Roque', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(73, 'District 3', 'Silangan', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(74, 'District 3', 'Socorro (Araneta City)', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(75, 'District 3', 'Tagumpay', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(76, 'District 3', 'Ugong Norte', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(77, 'District 3', 'Villa Maria Clara', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(78, 'District 3', 'West Kamias', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(79, 'District 3', 'White Plains', NULL, NULL, NULL, '2025-11-25 15:50:33', '2025-11-25 15:50:33'),
+(80, 'District 4', 'Apolonio Samson', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(81, 'District 4', 'Botocan', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(82, 'District 4', 'Central', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(83, 'District 4', 'Dioquino Zobel', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(84, 'District 4', 'Don Manuel', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(85, 'District 4', 'Doña Aurora', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(86, 'District 4', 'Doña Imelda', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(87, 'District 4', 'Doña Josefa', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(88, 'District 4', 'Damayang Lagi', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(89, 'District 4', 'Horseshoe', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(90, 'District 4', 'Immaculate Concepcion', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(91, 'District 4', 'Kalusugan', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(92, 'District 4', 'Kamuning', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(93, 'District 4', 'Kaunlaran', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(94, 'District 4', 'Kristong Hari', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(95, 'District 4', 'Krus na Ligas', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(96, 'District 4', 'Laging Handa', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(97, 'District 4', 'Malaya', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(98, 'District 4', 'Mariana', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(99, 'District 4', 'Obrero', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(100, 'District 4', 'Old Capitol Site', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(101, 'District 4', 'Paligsahan', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(102, 'District 4', 'Pinagkaisahan', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(103, 'District 4', 'Pinyahan', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(104, 'District 4', 'Roxas District', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(105, 'District 4', 'Sacred Heart', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(106, 'District 4', 'San Isidro', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(107, 'District 4', 'San Martin de Porres', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(108, 'District 4', 'San Vicente', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(109, 'District 4', 'Sikatuna Village', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(110, 'District 4', 'Sto. Niño', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(111, 'District 4', 'Tatalon', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(112, 'District 4', 'Teachers Village East', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(113, 'District 4', 'Teachers Village West', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(114, 'District 4', 'U.P. Campus', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(115, 'District 4', 'U.P. Village', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(116, 'District 4', 'Valencia', NULL, NULL, NULL, '2025-11-25 15:50:40', '2025-11-25 15:50:40'),
+(117, 'District 5', 'Bagbag', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(118, 'District 5', 'Capri', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(119, 'District 5', 'Fairview', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(120, 'District 5', 'Gulod', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(121, 'District 5', 'Greater Lagro', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(122, 'District 5', 'Kaligayahan', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(123, 'District 5', 'Nagkaisang Nayon', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(124, 'District 5', 'North Fairview', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(125, 'District 5', 'Novaliches Proper (Bayan)', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(126, 'District 5', 'Pasong Putik Proper', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(127, 'District 5', 'San Agustin', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(128, 'District 5', 'San Bartolome', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(129, 'District 5', 'Santa Lucia', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(130, 'District 5', 'Santa Monica', NULL, NULL, NULL, '2025-11-25 15:50:46', '2025-11-25 15:50:46'),
+(131, 'District 6', 'Baesa', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55'),
+(132, 'District 6', 'Balon-bato', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55'),
+(133, 'District 6', 'Culiat', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55'),
+(134, 'District 6', 'New Era', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55'),
+(135, 'District 6', 'Pasong Tamo', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55'),
+(136, 'District 6', 'Sangandaan', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55'),
+(137, 'District 6', 'Talipapa', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55'),
+(138, 'District 6', 'Tandang Sora', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55'),
+(139, 'District 6', 'Unang Sigaw', NULL, NULL, NULL, '2025-11-25 15:50:55', '2025-11-25 15:50:55');
 
 -- --------------------------------------------------------
 
@@ -411,12 +574,14 @@ CREATE TABLE `events` (
   `id` int(11) NOT NULL,
   `title` varchar(255) NOT NULL,
   `type` enum('Program','Training','Scenario-Based') NOT NULL,
+  `disaster_type` varchar(255) DEFAULT NULL,
   `date` date NOT NULL,
   `time` time NOT NULL,
   `duration` int(11) NOT NULL,
   `location` varchar(255) NOT NULL,
   `facilitator` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
+  `status` enum('Pending','In Progress','Completed') DEFAULT 'Pending',
   `approval_status` enum('Pending','Approved') DEFAULT 'Pending',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `approved_at` timestamp NULL DEFAULT NULL,
@@ -430,6 +595,16 @@ CREATE TABLE `events` (
   `start_time` time NOT NULL,
   `end_time` time NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `events`
+--
+
+INSERT INTO `events` (`id`, `title`, `type`, `disaster_type`, `date`, `time`, `duration`, `location`, `facilitator`, `notes`, `status`, `approval_status`, `created_at`, `approved_at`, `audience`, `location_lat`, `location_lng`, `capacity`, `updated_at`, `description`, `event_date`, `start_time`, `end_time`) VALUES
+(2, 'Earthquake Drills', 'Training', 'Earthquake', '2025-11-18', '15:00:00', 2, 'Brgy. Nagkaisang Nayon', 'Aaliyah Jash Nebab', 'Prepare for upcoming Earthquakes', 'Pending', '', '2025-11-18 01:45:41', NULL, 'General', NULL, NULL, 0, '2025-11-17 20:44:13', NULL, '0000-00-00', '00:00:00', '00:00:00'),
+(3, 'Earthquake Drills', 'Training', 'Earthquake', '2025-11-18', '15:00:00', 2, 'Brgy. Nagkaisang Nayon', 'Aaliyah Jash Nebab', 'Prepare for upcoming Earthquakes', 'Pending', '', '2025-11-18 01:46:08', NULL, 'General', NULL, NULL, 0, '2025-11-17 20:44:15', NULL, '0000-00-00', '00:00:00', '00:00:00'),
+(4, 'Earthquake Drills', 'Training', 'Earthquake', '2025-11-18', '15:00:00', 2, 'Brgy. Nagkaisang Nayon', 'Aaliyah Jash Nebab', 'Prepare for upcoming Earthquakes', 'Pending', 'Pending', '2025-11-18 01:46:18', NULL, 'General', NULL, NULL, 0, '2025-11-17 17:46:18', NULL, '0000-00-00', '00:00:00', '00:00:00'),
+(5, 'Earthquake Drills', 'Training', 'Earthquake', '2025-11-18', '15:00:00', 2, 'Brgy. Nagkaisang Nayon', 'Aaliyah Jash Nebab', 'Prepare for upcoming Earthquakes', 'Pending', 'Pending', '2025-11-18 01:49:31', NULL, 'General', NULL, NULL, 0, '2025-11-17 17:49:31', NULL, '0000-00-00', '00:00:00', '00:00:00');
 
 -- --------------------------------------------------------
 
@@ -607,6 +782,20 @@ CREATE TABLE `maintenance_logs` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `modules`
+--
+
+CREATE TABLE `modules` (
+  `id` int(11) NOT NULL,
+  `module_name` varchar(255) NOT NULL,
+  `disaster_type` varchar(100) NOT NULL,
+  `added_by` int(11) NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `notifications`
 --
 
@@ -616,7 +805,10 @@ CREATE TABLE `notifications` (
   `title` varchar(255) NOT NULL,
   `message` text NOT NULL,
   `is_read` tinyint(1) DEFAULT 0,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `target` enum('all','participants','staff') NOT NULL DEFAULT 'all',
+  `location_lat` double DEFAULT NULL,
+  `location_lng` double DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -809,15 +1001,16 @@ CREATE TABLE `staff` (
   `name` varchar(255) NOT NULL,
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `role` enum('admin','staff') NOT NULL DEFAULT 'staff'
+  `role` enum('admin','staff') NOT NULL DEFAULT 'staff',
+  `certification` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `staff`
 --
 
-INSERT INTO `staff` (`id`, `name`, `email`, `password`, `role`) VALUES
-(1, 'Default Admin', 'admin@example.com', '$2y$10$oyMSRrpNnJxAHjsR65U2gu8/iGY0AXbWxAw4bUa0YUkyldyQ.X1ru', 'admin');
+INSERT INTO `staff` (`id`, `name`, `email`, `password`, `role`, `certification`) VALUES
+(1, 'Default Admin', 'admin@example.com', '$2y$10$oyMSRrpNnJxAHjsR65U2gu8/iGY0AXbWxAw4bUa0YUkyldyQ.X1ru', 'admin', NULL);
 
 -- --------------------------------------------------------
 
@@ -884,7 +1077,8 @@ CREATE TABLE `variables` (
 -- Indexes for table `announcements`
 --
 ALTER TABLE `announcements`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_safety_procedure` (`safety_procedure_id`);
 
 --
 -- Indexes for table `attendance`
@@ -916,6 +1110,14 @@ ALTER TABLE `attendance_staff`
   ADD PRIMARY KEY (`id`),
   ADD KEY `staff_id` (`staff_id`),
   ADD KEY `event_id` (`event_id`);
+
+--
+-- Indexes for table `barangay_locations`
+--
+ALTER TABLE `barangay_locations`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_district` (`district`),
+  ADD KEY `idx_barangay` (`barangay_name`);
 
 --
 -- Indexes for table `certificates`
@@ -1085,6 +1287,12 @@ ALTER TABLE `maintenance_logs`
   ADD KEY `fk_maintenance_equipment` (`equipment_id`);
 
 --
+-- Indexes for table `modules`
+--
+ALTER TABLE `modules`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `notifications`
 --
 ALTER TABLE `notifications`
@@ -1227,6 +1435,12 @@ ALTER TABLE `attendance_staff`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `barangay_locations`
+--
+ALTER TABLE `barangay_locations`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=140;
+
+--
 -- AUTO_INCREMENT for table `certificates`
 --
 ALTER TABLE `certificates`
@@ -1311,6 +1525,12 @@ ALTER TABLE `equipment_audits`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `events`
+--
+ALTER TABLE `events`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+
+--
 -- AUTO_INCREMENT for table `exercise_history`
 --
 ALTER TABLE `exercise_history`
@@ -1368,6 +1588,12 @@ ALTER TABLE `maintenance`
 -- AUTO_INCREMENT for table `maintenance_logs`
 --
 ALTER TABLE `maintenance_logs`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `modules`
+--
+ALTER TABLE `modules`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -1469,6 +1695,12 @@ ALTER TABLE `variables`
 --
 -- Constraints for dumped tables
 --
+
+--
+-- Constraints for table `announcements`
+--
+ALTER TABLE `announcements`
+  ADD CONSTRAINT `fk_safety_procedure` FOREIGN KEY (`safety_procedure_id`) REFERENCES `safety_procedures` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `attendance`
