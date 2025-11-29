@@ -81,10 +81,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
-          <li><a href="/Capstone-defense/admin/module3/module3.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Debriefing</a></li>
-          <li><a href="/Capstone-defense/admin/module3/module3.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Scenario Templates</a></li>
-          <li><a href="/Capstone-defense/admin/module3/module3.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Variable Configuration</a></li>
-          <li><a href="/Capstone-defense/admin/module3/module3.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Decision Points</a></li>
+          <li><a href="/Capstone-defense/admin/module3/module3.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Scenario Creation </a></li>
+          <li><a href="/Capstone-defense/admin/module3/module3.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Pre-Simulation Briefing</a></li>
+          <li><a href="/Capstone-defense/admin/module3/module3.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Post-Simulation Debriefing</a></li>
+          <li><a href="/Capstone-defense/admin/module3/module3.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Evaluation Reports</a></li>
         </ul>
       </li>
 
@@ -104,12 +104,10 @@
         </button>
         <ul x-show="open" x-transition
             class="ml-6 mt-2 space-y-2 border-l border-blue-400 pl-4 text-sm font-normal">
-          <li><a href="/Capstone-defense/admin/module4/module4.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Criteria</a></li>
-          <li><a href="/Capstone-defense/admin/module4/module4.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Data</a></li>
-          <li><a href="/Capstone-defense/admin/module4/module4.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Scoring</a></li>
-          <li><a href="/Capstone-defense/admin/module4/module4.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Reports</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.1.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Performance Evaluation</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.2.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Scoring</a></li>
+          <li><a href="/Capstone-defense/admin/module4/module4.3.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Reports</a></li>
           <li><a href="/Capstone-defense/admin/module4/module4.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">Feedback</a></li>
-          <li><a href="/Capstone-defense/admin/module4/module4.4.php" class="block px-3 py-2 rounded hover:bg-blue-500 transition">History</a></li>
         </ul>
       </li>
 

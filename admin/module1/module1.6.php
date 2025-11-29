@@ -45,141 +45,214 @@ foreach (array_merge($recentModules, $modules) as $m) {
         'created_at' => $m['created_at'] ?? ''
     ];
 }
+include '../sidebar.php'; 
 
+// =========================================================================================
+// MOCK DATABASE CONNECTION & DATA SIMULATION (using simulation_event_planning DB concept)
+// =========================================================================================
+
+// Mock connection setup (In a real app, this connects to simulation_event_planning)
+$dbName = "simulation_event_planning";
+
+// Mock Module Data
+$modules = [
+    ['id' => 1, 'title' => 'Tsunami Protocol Basics', 'total_users' => 120],
+    ['id' => 2, 'title' => 'Chemical Spill First Response', 'total_users' => 150],
+    ['id' => 3, 'title' => 'Mass Casualty Triage', 'total_users' => 95],
+    ['id' => 4, 'title' => 'Communications Hierarchy', 'total_users' => 120],
+];
+
+// Mock Participant Completion Data (Overall Progress Report)
+$totalParticipants = 485;
+$overallCompletionRate = 78.5;
+$inactiveThresholdDays = 30;
+$inactiveParticipants = 42;
+$delayedParticipants = 85; 
+
+// Mock Data: Completion per Barangay (Monitor module completion per barangay)
+$barangayCompletion = [
+    ['name' => 'Barangay Central', 'completion' => 92, 'active' => 150, 'total' => 163],
+    ['name' => 'Barangay Coastal West', 'completion' => 75, 'active' => 120, 'total' => 160],
+    ['name' => 'Barangay Mountain East', 'completion' => 55, 'active' => 45, 'total' => 82],
+    ['name' => 'Barangay Industrial Zone', 'completion' => 88, 'active' => 75, 'total' => 80],
+];
+
+// Mock Data: Inactive/Delayed Participants (Identify inactive or delayed participants)
+$inactiveList = [
+    ['id' => 101, 'name' => 'Juan Dela Cruz', 'barangay' => 'Coastal West', 'last_activity' => 45],
+    ['id' => 105, 'name' => 'Maria Santos', 'barangay' => 'Mountain East', 'last_activity' => 60],
+    ['id' => 112, 'name' => 'Pedro Reyes', 'barangay' => 'Central', 'last_activity' => 32],
+];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Admin - Completion Tracking</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    html, body { height: 100%; }
-    body { display: flex; overflow: hidden; background-color: #f3f4f6; }
-    main { flex: 1; height: 100vh; overflow-y: auto; }
-    .module-fade { animation: fadeOut 0.45s forwards; }
-
-    @keyframes fadeOut {
-      to { opacity: 0; transform: translateY(-6px); height: 0; margin: 0; padding: 0; }
-    }
-
-    /* make recent badges clearly interactive */
-    .recent-badge { cursor: pointer; user-select: none; }
-
-    /* responsive tweaks */
-    @media (max-width: 768px) {
-      main { padding: 1rem; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Progress & Completion Tracking</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for independent scrolling and font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Tailwind slate-50 */
+        }
+        /* Define the main content area for independent scrolling */
+        .h-screen-main {
+            min-height: 100vh;
+            max-height: 100vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .h-screen-main::-webkit-scrollbar {
+            width: 8px;
+        }
+        .h-screen-main::-webkit-scrollbar-thumb {
+            background-color: #e2e8f0; /* Tailwind slate-200 */
+            border-radius: 10px;
+        }
+    </style>
 </head>
-<body class="font-sans text-gray-800">
 
-<?php include '../sidebar.php'; ?>
+<body class="bg-slate-50 flex">
 
-<main class="p-6 space-y-8">
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 h-screen-main p-4 sm:p-8 space-y-10">
 
-  <!-- DASHBOARD HEADER WITH RECENT BADGES -->
-  <section>
-    <div class="flex items-start justify-between">
-      <div>
-        <h1 class="text-3xl font-bold text-sky-700 mb-2">Completion Tracking</h1>
-        <p class="text-gray-600 text-sm">Manage mandatory and prerequisite modules.</p>
-      </div>
-      <div class="text-right text-sm text-gray-500">
-        Admin: <span class="font-medium"><?= isset($_SESSION['name']) ? htmlspecialchars($_SESSION['name']) : 'Admin' ?></span><br>
-        <?= date('F j, Y, g:i A') ?>
-      </div>
-    </div>
+        <!-- PAGE HEADER -->
+        <header class="pb-4 border-b-2 border-sky-200">
+            <h1 class="text-4xl font-extrabold text-gray-900 tracking-tight">
+                <span class="text-sky-600">Progress</span> & Completion Tracking
+            </h1>
+            <p class="text-lg text-gray-600 mt-2">
+                Monitor training consistency and accountability across all participants and modules.
+                <span class="font-mono text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded ml-2"><?= $dbName ?></span>
+            </p>
+        </header>
 
-    <?php if (!empty($recentModules)): ?>
-      <div class="flex flex-wrap gap-2 mt-4">
-        <?php foreach ($recentModules as $rm): ?>
-          <span data-id="<?= intval($rm['id']) ?>" class="recent-badge px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs hover:bg-green-200" onclick="openModuleModal(<?= intval($rm['id']) ?>)">
-            NEW: <?= htmlspecialchars($rm['title']) ?>
-          </span>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
-  </section>
+        <!-- ============================================== -->
+        <!-- SECTION 1: OVERALL PROGRESS REPORTS (KPIs) -->
+        <!-- ============================================== -->
+        <h2 class="text-2xl font-bold text-sky-700">Overall Training Performance</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <!-- Card 1: Total Participants -->
+            <div class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-sky-400 transition hover:shadow-2xl">
+                <p class="text-sm font-bold text-sky-700 uppercase tracking-widest">Total Participants</p>
+                <p class="text-5xl font-extrabold text-gray-900 mt-3"><?= $totalParticipants ?></p>
+            </div>
 
-  <!-- FLOATING PANEL: RECENT MODULES -->
-  <section class="bg-white p-5 rounded-xl shadow-md border relative">
-    <div class="flex items-center justify-between">
-      <h2 class="text-lg font-semibold">Recently Added Modules</h2>
-      <div class="text-xs text-gray-500">(Click <strong>View Details</strong> to open — the card will disappear after you open it)</div>
-    </div>
+            <!-- Card 2: Overall Completion Rate -->
+            <div class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-green-400 transition hover:shadow-2xl">
+                <p class="text-sm font-bold text-green-700 uppercase tracking-widest">Completion Rate</p>
+                <p class="text-5xl font-extrabold text-gray-900 mt-3">
+                    <?= number_format($overallCompletionRate, 1) ?><span class="text-xl font-medium text-green-500">%</span>
+                </p>
+            </div>
 
-    <div id="recentModulesPanel" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-      <?php foreach ($recentModules as $rm): ?>
-        <div id="recent-card-<?= intval($rm['id']) ?>" class="bg-slate-50 p-4 rounded-lg shadow-sm border">
-          <h3 class="font-bold text-gray-800 text-sm"><?= htmlspecialchars($rm['title']) ?></h3>
-          <p class="text-xs text-gray-500 mt-1">Added: <?= htmlspecialchars($rm['created_at']) ?></p>
-          <p class="text-xs text-gray-600 mt-2"><?php $d = strip_tags($rm['description'] ?? ''); echo htmlspecialchars(strlen($d) > 120 ? substr($d,0,120).'...' : ($d ?: '— No description —')); ?></p>
-          <div class="mt-3 flex items-center gap-2">
-            <button onclick="onRecentView(<?= intval($rm['id']) ?>)" class="text-xs px-3 py-1 bg-sky-600 text-white rounded hover:bg-sky-700">View Details</button>
-            <button onclick="dismissRecent(<?= intval($rm['id']) ?>)" class="text-xs px-3 py-1 bg-white border rounded">Dismiss</button>
-          </div>
+            <!-- Card 3: Inactive Participants (Identify inactive) -->
+            <div class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-red-400 transition hover:shadow-2xl">
+                <p class="text-sm font-bold text-red-700 uppercase tracking-widest">Inactive (> <?= $inactiveThresholdDays ?> Days)</p>
+                <p class="text-5xl font-extrabold text-gray-900 mt-3"><?= $inactiveParticipants ?></p>
+                <button class="text-xs text-red-600 mt-2 font-medium hover:underline">View List & Send Reminders</button>
+            </div>
+
+            <!-- Card 4: Modules Available -->
+            <div class="bg-white p-6 rounded-2xl shadow-xl border-t-4 border-indigo-400 transition hover:shadow-2xl">
+                <p class="text-sm font-bold text-indigo-700 uppercase tracking-widest">Total Training Modules</p>
+                <p class="text-5xl font-extrabold text-gray-900 mt-3"><?= count($modules) ?></p>
+                <p class="text-xs text-gray-500 mt-2">Essential for knowledge consistency.</p>
+            </div>
         </div>
-      <?php endforeach; ?>
-    </div>
 
-    <?php if (empty($recentModules)): ?>
-      <p class="text-sm text-gray-500">No recently added modules.</p>
-    <?php endif; ?>
-  </section>
+        <!-- ============================================== -->
+        <!-- SECTION 2: COMPLETION BY BARANGAY (Monitoring) -->
+        <!-- ============================================== -->
+        <div class="bg-white p-6 md:p-8 rounded-2xl shadow-xl border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <svg class="w-7 h-7 mr-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.243-4.243m10.606 0L13.414 20.9a1.998 1.998 0 01-2.828 0l-4.243-4.243m10.606 0L17.657 16.657M6.343 16.657L6.343 16.657"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0z"></path></svg>
+                Module Completion Rate per Barangay
+            </h2>
 
-  <!-- MAIN MODULE TABLE -->
-  <section class="bg-white p-6 rounded-xl shadow-md border">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-semibold">All Modules</h2>
-      <div class="flex items-center gap-3">
-        <input id="searchModules" type="search" placeholder="Search modules..." class="border rounded px-3 py-2 text-sm" oninput="filterTable()">
-      </div>
-    </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+                <?php foreach ($barangayCompletion as $b): ?>
+                    <?php
+                        // Determine progress color
+                        $progressColor = 'bg-red-400';
+                        if ($b['completion'] >= 90) $progressColor = 'bg-green-500';
+                        else if ($b['completion'] >= 70) $progressColor = 'bg-yellow-500';
+                    ?>
+                    <div class="p-4 rounded-xl border border-gray-100 shadow-md bg-white hover:border-sky-300 transition duration-300">
+                        <p class="font-bold text-lg text-gray-800"><?= $b['name'] ?></p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <?= $b['active'] ?> / <?= $b['total'] ?> Participants Tracked
+                        </p>
+                        
+                        <div class="mt-4">
+                            <div class="flex justify-between mb-1 text-sm font-medium">
+                                <span class="text-gray-700">Completion</span>
+                                <span class="font-extrabold text-lg" style="color: <?= $progressColor ?>;"><?= $b['completion'] ?>%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div class="h-2.5 rounded-full <?= $progressColor ?>" style="width: <?= $b['completion'] ?>%"></div>
+                            </div>
+                        </div>
+                        <button class="text-xs text-sky-600 mt-3 font-medium hover:underline">View Barangay Details</button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
 
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm border">
-        <thead class="bg-slate-100">
-          <tr>
-            <th class="px-4 py-2 border">ID</th>
-            <th class="px-4 py-2 border">Module</th>
-            <th class="px-4 py-2 border">Created</th>
-            <th class="px-4 py-2 border">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="modulesTableBody">
-          <?php foreach ($modules as $m): ?>
-            <tr data-id="<?= intval($m['id']) ?>">
-              <td class="px-4 py-2 border text-center"><?= intval($m['id']) ?></td>
-              <td class="px-4 py-2 border"><?= htmlspecialchars($m['title']) ?></td>
-              <td class="px-4 py-2 border"><?= htmlspecialchars($m['created_at']) ?></td>
-              <td class="px-4 py-2 border text-center">
-                <button onclick="openModuleModal(<?= intval($m['id']) ?>)" class="text-xs px-3 py-1 bg-white border rounded">View Details</button>
-              </td>
-            </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  </section>
+        <!-- ============================================== -->
+        <!-- SECTION 3: INACTIVE PARTICIPANTS (Actionable List) -->
+        <!-- ============================================== -->
+        <div class="bg-white p-6 md:p-8 rounded-2xl shadow-xl border border-red-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <svg class="w-7 h-7 mr-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                Delayed or Inactive Participants (Immediate Action Required)
+            </h2>
 
-</main>
+            <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-inner">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-red-50">
+                        <tr>
+                            <th class="p-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider rounded-tl-xl">ID</th>
+                            <th class="p-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider">Participant Name</th>
+                            <th class="p-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider">Barangay</th>
+                            <th class="p-4 text-center text-xs font-bold text-red-700 uppercase tracking-wider">Last Activity (Days Ago)</th>
+                            <th class="p-4 text-center text-xs font-bold text-red-700 uppercase tracking-wider rounded-tr-xl">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-100">
+                        <?php foreach ($inactiveList as $p): ?>
+                        <tr class="hover:bg-red-50/50 transition duration-150">
+                            <td class="p-4 text-sm text-gray-500 font-mono"><?= $p['id'] ?></td>
+                            <td class="p-4 text-sm font-semibold text-gray-900"><?= $p['name'] ?></td>
+                            <td class="p-4 text-sm text-gray-700"><?= $p['barangay'] ?></td>
+                            
+                            <td class="p-4 text-center text-lg font-extrabold text-red-600">
+                                <?= $p['last_activity'] ?>
+                            </td>
 
-<!-- UNIVERSAL MODULE MODAL -->
-<div id="moduleModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
-  <div class="bg-white w-11/12 md:w-2/3 lg:w-1/2 p-6 rounded-xl shadow-xl">
-    <div class="flex justify-between items-center mb-4">
-      <h3 id="moduleModalTitle" class="font-bold text-lg">Module Details</h3>
-      <button onclick="closeModuleModal()" class="text-gray-500">✕</button>
-    </div>
-    <div id="moduleModalContent" class="text-sm text-gray-700 max-h-[60vh] overflow-y-auto"></div>
-    <div class="mt-4 flex justify-end gap-2">
-      <a id="editLink" href="#" class="px-4 py-2 border rounded text-sm">Edit</a>
-      <button onclick="closeModuleModal()" class="px-4 py-2 bg-slate-100 rounded text-sm">Close</button>
-    </div>
-  </div>
-</div>
+                            <td class="p-4 text-center text-sm font-medium">
+                                <button class="bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-red-600 transition shadow-md shadow-red-300">
+                                    Send Follow-up
+                                </button>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <?php if (empty($inactiveList)): ?>
+                <p class="mt-4 p-4 bg-green-50 text-green-700 rounded-lg border border-green-200 text-center font-medium">
+                    All participants are currently active and compliant with the training schedule.
+                </p>
+            <?php endif; ?>
+        </div>
+        
+    </main>
 
 <script>
 // Injected module data from server

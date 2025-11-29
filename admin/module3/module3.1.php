@@ -1,321 +1,306 @@
 <?php
 session_start();
 
-// =========================
-// Database connection
-// =========================
+// =============================
+// Database Connection
+// =============================
 $host = "localhost";
 $user = "root";
 $pass = "";
 $db = "simulation_event_planning";
 
 $conn = new mysqli($host, $user, $pass, $db);
+
+// Handle Connection Error
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// =========================
-// CREATE REQUIRED TABLES IF THEY DON'T EXIST
-// =========================
+// =============================
+// Fetch Simulation Types
+// =============================
+$simulationTypes = $conn->query("SELECT id, name FROM simulation_types ORDER BY name ASC");
 
-// Create 'staff' table
-$sql_create_staff_table = "
-CREATE TABLE IF NOT EXISTS `staff` (
-    `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL,
-    `email` VARCHAR(255) NOT NULL UNIQUE,
-    `password` VARCHAR(255) NOT NULL,
-    `role` ENUM('admin', 'staff') NOT NULL DEFAULT 'staff'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-";
-if (!$conn->query($sql_create_staff_table)) {
-    die("Error creating staff table: " . $conn->error);
-}
+// =============================
+// Fetch Scenario List
+// =============================
+$scenarios = $conn->query("
+    SELECT id, title, simulation_type, difficulty, status 
+    FROM scenario_templates 
+    ORDER BY created_at DESC
+");
+$simulationTypes = new ArrayIterator([
+    ['name' => 'Flood Response Drill'],
+    ['name' => 'Earthquake Evacuation'],
+    ['name' => 'Fire Incident Management'],
+    ['name' => 'Disease Outbreak Protocol'],
+]);
 
-// Create 'scenarios' table
-$sql_create_scenarios_table = "
-CREATE TABLE IF NOT EXISTS `scenarios` (
-    `id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `title` VARCHAR(255) NOT NULL,
-    `description` TEXT NOT NULL,
-    `type` VARCHAR(50) NOT NULL,
-    `difficulty` ENUM('Beginner', 'Intermediate', 'Advanced') NOT NULL,
-    `creator_id` INT(11) NOT NULL,
-    `approval_status` ENUM('Pending','Approved') NOT NULL DEFAULT 'Pending',
-    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `approved_at` TIMESTAMP NULL DEFAULT NULL,
-    FOREIGN KEY (`creator_id`) REFERENCES `staff`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-";
-if (!$conn->query($sql_create_scenarios_table)) {
-    die("Error creating scenarios table: " . $conn->error);
-}
-
-// =========================
-// SEED DATABASE WITH A DEFAULT ADMIN USER
-// =========================
-$email = 'admin@example.com';
-$password_hash = password_hash('admin123', PASSWORD_DEFAULT);
-
-$stmt_check = $conn->prepare("SELECT id FROM staff WHERE email = ?");
-$stmt_check->bind_param("s", $email);
-$stmt_check->execute();
-$result_check = $stmt_check->get_result();
-
-if ($result_check->num_rows === 0) {
-    $stmt_insert = $conn->prepare("INSERT INTO staff (name, email, password, role) VALUES (?, ?, ?, 'admin')");
-    $name = 'Default Admin';
-    $stmt_insert->bind_param("sss", $name, $email, $password_hash);
-    $stmt_insert->execute();
-    $stmt_insert->close();
-}
-$stmt_check->close();
-
-// ----------------------
-// AUTH CHECK
-// ----------------------
-if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
-    exit;
-}
-
-// ----------------------
-// CSRF TOKEN
-// ----------------------
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-
-// ----------------------
-// ADD / UPDATE SCENARIO
-// ----------------------
-$message = '';
-$message_type = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_scenario'])) {
-    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-        $message = "Invalid CSRF token.";
-        $message_type = "error";
-    } else {
-        $title = $_POST['title'];
-        $description = $_POST['description'];
-        $type = $_POST['type'];
-        $difficulty = $_POST['difficulty'];
-        $creator_id = $_SESSION['id'];
-        $edit_mode = isset($_POST['id']) && !empty($_POST['id']);
-
-        if ($edit_mode) {
-            $id = (int)$_POST['id'];
-            $stmt = $conn->prepare("UPDATE scenarios SET title=?, description=?, type=?, difficulty=? WHERE id=?");
-            $stmt->bind_param("ssssi", $title, $description, $type, $difficulty, $id);
-            if ($stmt->execute()) {
-                $message = "Scenario updated successfully!";
-                $message_type = "success";
-            } else {
-                $message = "Error updating scenario: " . $stmt->error;
-                $message_type = "error";
-            }
-        } else {
-            // ======================================
-            // UPDATED: Admin adds a new scenario, it gets approved immediately.
-            // We set approval_status to 'Approved' and approved_at to NOW().
-            // ======================================
-            $stmt = $conn->prepare("INSERT INTO scenarios (title, description, type, difficulty, creator_id, approval_status, approved_at) VALUES (?, ?, ?, ?, ?, 'Approved', NOW())");
-            $stmt->bind_param("ssssi", $title, $description, $type, $difficulty, $creator_id);
-            if ($stmt->execute()) {
-                $message = "Scenario added successfully and has been **approved**!";
-                $message_type = "success";
-            } else {
-                $message = "Error adding scenario: " . $stmt->error;
-                $message_type = "error";
-            }
-        }
-        $stmt->close();
-    }
-}
-
-// ----------------------
-// APPROVE SCENARIO
-// ----------------------
-if (isset($_GET['approve'])) {
-    $id = (int)$_GET['approve'];
-    $stmt = $conn->prepare("UPDATE scenarios SET approval_status='Approved', approved_at=NOW() WHERE id=?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $stmt->close();
-    header("Location: " . $_SERVER['PHP_SELF'] . "?msg=approved");
-    exit;
-}
-
-// ----------------------
-// DELETE SCENARIO
-// ----------------------
-if (isset($_GET['delete'])) {
-    $id = (int)$_GET['delete'];
-    $stmt = $conn->prepare("DELETE FROM scenarios WHERE id=?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $stmt->close();
-    header("Location: " . $_SERVER['PHP_SELF'] . "?msg=deleted");
-    exit;
-}
-
-// ----------------------
-// FETCH SCENARIOS
-// ----------------------
-$scenarios = [];
-$res = $conn->query("SELECT s.*, st.name as creator_name FROM scenarios s JOIN staff st ON s.creator_id = st.id ORDER BY created_at DESC");
-if ($res) {
-    while ($row = $res->fetch_assoc()) {
-        $scenarios[] = $row;
-    }
-    $res->free();
-}
-
-// ----------------------
-// FETCH SINGLE SCENARIO FOR EDIT
-// ----------------------
-$edit_mode = false;
-$edit_scenario = null;
-if (isset($_GET['edit'])) {
-    $edit_mode = true;
-    $id = (int)$_GET['edit'];
-    $stmt = $conn->prepare("SELECT * FROM scenarios WHERE id=?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $edit_scenario = $result->fetch_assoc();
-    $stmt->close();
-    if (!$edit_scenario) $edit_mode = false;
-}
-
-$conn->close();
+$scenarios = new ArrayIterator([
+    ['id' => 101, 'title' => 'Tsunami Alert Phase 2', 'simulation_type' => 'Earthquake Evacuation', 'difficulty' => 'Advanced', 'status' => 'Published'],
+    ['id' => 102, 'title' => 'Market Fire Scenario', 'simulation_type' => 'Fire Incident Management', 'difficulty' => 'Intermediate', 'status' => 'Draft'],
+    ['id' => 103, 'title' => 'Typhoon Preparation Drill', 'simulation_type' => 'Flood Response Drill', 'difficulty' => 'Basic', 'status' => 'Pending Approval'],
+]);
+// ----------------------------------------------------------------------------------
+include '../sidebar.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Disaster Simulation Frameworks</title>
+    <title>Scenario Creation Templates</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom styles for independent scrolling and font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Lighter background for a cleaner look */
+        }
+        /* Ensure main content handles its own scroll, assuming sidebar is fixed or also scrollable */
+        .h-screen-main {
+            min-height: 100vh;
+            max-height: 100vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Enhanced scrollbar for better aesthetics */
+        .h-screen-main::-webkit-scrollbar {
+            width: 8px;
+        }
+        .h-screen-main::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1; /* Gray-300 */
+            border-radius: 10px;
+        }
+
+        /* Custom file input styling */
+        .custom-file-input {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            background-color: #ffffff;
+            transition: all 0.2s;
+        }
+        .custom-file-input:hover {
+            border-color: #6366f1; /* Indigo-500 */
+            box-shadow: 0 0 0 1px #6366f1;
+        }
+    </style>
 </head>
-<body class="h-screen flex overflow-hidden">
 
-<aside class="w-64 bg-gradient-to-b from-blue-700 to-blue-600 text-white flex-shrink-0 h-full overflow-y-auto">
-    <?php include '../sidebar.php'; ?>
-</aside>
+<!-- We are treating the main content area as the independently scrollable part -->
+<body class="bg-gray-50 flex">
 
-<main class="flex-1 h-full overflow-y-auto p-8 bg-gray-100 pt-20">
+    <!-- The 'sidebar.php' include is here, making this the main content area -->
 
-    <nav class="bg-white shadow px-6 py-4 flex justify-between items-center fixed top-0 left-64 right-0 z-10">
-        <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <i data-lucide="building-2" class="w-8 h-8 text-blue-600"></i>
-            Disaster Simulation Frameworks
-        </h1>
-    </nav>
-    
-    <?php if (isset($_GET['msg'])): ?>
-        <?php 
-            $message_map = [
-                'approved' => ['text' => 'Scenario approved successfully!', 'color' => 'green'],
-                'deleted' => ['text' => 'Scenario deleted successfully.', 'color' => 'red'],
-                'updated' => ['text' => 'Scenario updated successfully!', 'color' => 'green'],
-            ];
-            $msg = $message_map[$_GET['msg']] ?? ['text' => 'Action successful.', 'color' => 'blue'];
-        ?>
-        <div class="p-4 mb-4 text-<?= $msg['color'] ?>-800 bg-<?= $msg['color'] ?>-100 border border-<?= $msg['color'] ?>-300 rounded-lg"><?= htmlspecialchars($msg['text']) ?></div>
-    <?php endif; ?>
-    <?php if (!empty($message)): ?>
-        <div class="p-4 mb-4 text-<?= $message_type ?>-800 bg-<?= $message_type ?>-100 border border-<?= $message_type ?>-300 rounded-lg"><?= htmlspecialchars($message) ?></div>
-    <?php endif; ?>
+    <!-- ============================= -->
+    <!-- MAIN CONTENT WITH INDEPENDENT SCROLLING -->
+    <!-- ============================= -->
+    <main class="flex-1 h-screen-main p-8 space-y-10">
 
-    <div class="bg-white p-6 rounded-xl shadow mb-8">
-        <h2 class="text-lg font-semibold text-gray-700 mb-4"><?= $edit_mode ? "Edit Scenario" : "Add New Scenario" ?></h2>
-        <form method="POST" class="space-y-4">
-            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-            <?php if ($edit_mode): ?><input type="hidden" name="id" value="<?= $edit_scenario['id'] ?>"><?php endif; ?>
+        <!-- HEADER -->
+        <header class="pb-4 border-b border-gray-200">
+            <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">Scenario Management Hub</h1>
+            <p class="text-base text-gray-600 mt-2">
+                Design, structure, and deploy all disaster simulation templates for training.
+            </p>
+        </header>
 
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Title</label>
-                <input type="text" name="title" required value="<?= $edit_mode ? htmlspecialchars($edit_scenario['title']) : '' ?>" class="w-full border px-3 py-2 rounded-lg mt-1">
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Description</label>
-                <textarea name="description" rows="4" required class="w-full border px-3 py-2 rounded-lg mt-1"><?= $edit_mode ? htmlspecialchars($edit_scenario['description']) : '' ?></textarea>
-            </div>
-            
-            <div class="flex gap-4">
-                <div class="flex-1">
-                    <label class="block text-sm font-medium text-gray-700">Type</label>
-                    <input type="text" name="type" required value="<?= $edit_mode ? htmlspecialchars($edit_scenario['type']) : '' ?>" class="w-full border px-3 py-2 rounded-lg mt-1">
+        <!-- ============================= -->
+        <!-- FORM CARD: CREATE NEW SCENARIO -->
+        <!-- ============================= -->
+        <div class="bg-white p-8 rounded-2xl shadow-2xl shadow-indigo-100 border border-indigo-100">
+            <h2 class="text-2xl font-bold text-indigo-700 mb-6 flex items-center">
+                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Create New Scenario Template
+            </h2>
+
+            <form action="scenario_save.php" method="POST" enctype="multipart/form-data" class="space-y-8">
+
+                <!-- SECTION 1: CORE DEFINITIONS -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                    <!-- Scenario Title -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Scenario Title <span class="text-red-500">*</span></label>
+                        <input type="text" name="title" required placeholder="e.g., High-Intensity Typhoon Response"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-300 transition duration-150 ease-in-out focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 focus:outline-none shadow-sm">
+                    </div>
+
+                    <!-- Simulation Type -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Simulation Type <span class="text-red-500">*</span></label>
+                        <select name="simulation_type" required
+                            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white transition duration-150 ease-in-out focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 focus:outline-none shadow-sm">
+                            <option value="">Select Hazard Type...</option>
+                            <?php $simulationTypes->rewind(); while ($row = $simulationTypes->current()): ?>
+                                <option value="<?= $row['name'] ?>"><?= $row['name'] ?></option>
+                            <?php $simulationTypes->next(); endwhile; ?>
+                        </select>
+                    </div>
+
+                    <!-- Difficulty Level -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Difficulty Level <span class="text-red-500">*</span></label>
+                        <select name="difficulty" required
+                            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white transition duration-150 ease-in-out focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 focus:outline-none shadow-sm">
+                            <option value="Basic">Basic (Focus on Fundamentals)</option>
+                            <option value="Intermediate">Intermediate (Moderate Stress)</option>
+                            <option value="Advanced">Advanced (Complex, High-Stress)</option>
+                        </select>
+                    </div>
+
                 </div>
-                <div class="flex-1">
-                    <label class="block text-sm font-medium text-gray-700">Difficulty</label>
-                    <select name="difficulty" required class="w-full border px-3 py-2 rounded-lg mt-1">
-                        <option value="Beginner" <?= ($edit_mode && $edit_scenario['difficulty'] == 'Beginner') ? 'selected' : '' ?>>Beginner</option>
-                        <option value="Intermediate" <?= ($edit_mode && $edit_scenario['difficulty'] == 'Intermediate') ? 'selected' : '' ?>>Intermediate</option>
-                        <option value="Advanced" <?= ($edit_mode && $edit_scenario['difficulty'] == 'Advanced') ? 'selected' : '' ?>>Advanced</option>
-                    </select>
+
+                <!-- SECTION 2: DESCRIPTION & STATUS -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Scenario Description</label>
+                        <textarea
+                            name="description" rows="4"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-300 transition duration-150 ease-in-out focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 focus:outline-none shadow-sm"
+                            placeholder="Describe the scenario, objectives, hazards, flow, and expected actions for the responding teams."
+                        ></textarea>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="md:col-span-1">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Scenario Status</label>
+                        <select name="status"
+                            class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white transition duration-150 ease-in-out focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 focus:outline-none shadow-sm">
+                            <option value="Draft">Draft (In Progress)</option>
+                            <option value="Pending Approval">Pending Approval (Ready for Review)</option>
+                            <option value="Published">Published (Ready to Use)</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
 
-            <button type="submit" name="save_scenario" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Scenario</button>
-            <?php if ($edit_mode): ?>
-                <a href="<?= $_SERVER['PHP_SELF'] ?>" class="px-4 py-2 text-gray-700 rounded-lg hover:bg-gray-200">Cancel</a>
-            <?php endif; ?>
-        </form>
-    </div>
 
-    <div class="bg-white p-6 rounded-xl shadow">
-        <h2 class="text-lg font-semibold text-gray-700 mb-4">Scenario Templates</h2>
-        <div class="overflow-x-auto">
-            <table class="min-w-full border-collapse text-left">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="p-3">Title</th>
-                        <th class="p-3">Type</th>
-                        <th class="p-3">Difficulty</th>
-                        <th class="p-3">Status</th>
-                        <th class="p-3">Creator</th>
-                        <th class="p-3">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($scenarios)): ?>
-                        <tr>
-                            <td colspan="6" class="p-3 text-center text-gray-500">No scenarios found.</td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($scenarios as $scenario): ?>
-                            <tr class="border-b">
-                                <td class="p-3"><?= htmlspecialchars($scenario['title']) ?></td>
-                                <td class="p-3"><?= htmlspecialchars($scenario['type']) ?></td>
-                                <td class="p-3"><?= htmlspecialchars($scenario['difficulty']) ?></td>
-                                <td class="p-3">
-                                    <?= $scenario['approval_status'] == 'Approved' 
-                                        ? '<span class="text-green-600">Approved</span>' 
-                                        : '<span class="text-yellow-600">Pending</span>' ?>
-                                </td>
-                                <td class="p-3"><?= htmlspecialchars($scenario['creator_name']) ?></td>
-                                <td class="p-3 flex gap-2">
-                                    <?php if ($scenario['approval_status'] == 'Pending'): ?>
-                                        <a href="?approve=<?= $scenario['id'] ?>" class="text-blue-600 hover:underline">Approve</a>
-                                    <?php endif; ?>
-                                    <a href="?edit=<?= $scenario['id'] ?>" class="text-gray-600 hover:underline">Edit</a>
-                                    <a href="?delete=<?= $scenario['id'] ?>" class="text-red-600 hover:underline" onclick="return confirm('Delete this scenario?')">Delete</a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+                <!-- SECTION 3: MEDIA UPLOAD -->
+                <div class="border-t border-gray-100 pt-6">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Media Assets (Optional)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                        <!-- Floor Plan Upload -->
+                        <div class="p-4 border-2 border-dashed border-blue-200 rounded-xl bg-blue-50">
+                            <label class="block text-sm font-semibold text-blue-700 mb-2">Upload Floor Plan (Image/PDF)</label>
+                            <input type="file" name="floor_plan"
+                                class="custom-file-input w-full block text-sm text-gray-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-full file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-blue-100 file:text-blue-700
+                                hover:file:bg-blue-200"
+                            >
+                            <p class="text-xs text-blue-600 mt-2">
+                                Max file size: 10MB. Used for mapping routes, hazards, and safe zones.
+                            </p>
+                        </div>
+
+                        <!-- 3D Model Upload -->
+                        <div class="p-4 border-2 border-dashed border-purple-200 rounded-xl bg-purple-50">
+                            <label class="block text-sm font-semibold text-purple-700 mb-2">Upload 3D Model (GLB/OBJ)</label>
+                            <input type="file" name="model_3d"
+                                class="custom-file-input w-full block text-sm text-gray-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-full file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-purple-100 file:text-purple-700
+                                hover:file:bg-purple-200"
+                            >
+                            <p class="text-xs text-purple-600 mt-2">
+                                Required for VR/AR immersive simulation environments.
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+
+
+                <!-- SUBMIT BUTTON -->
+                <div class="flex justify-end pt-4">
+                    <button type="submit"
+                        class="flex items-center px-8 py-3 bg-indigo-600 text-white font-bold text-lg rounded-xl shadow-xl shadow-indigo-300 hover:bg-indigo-700 transform hover:scale-[1.02] transition duration-200">
+                        <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.21a.5.5 0 01.121.512L12.924 19.58c-.538.529-1.398.532-1.939.006L2.397 12.064c-.37-.369-.368-.967.004-1.336l.995-.985a.5.5 0 01.512-.121l4.417 1.054a.5.5 0 00.524-.047l.453-.339a.5.5 0 01.603-.04l.988.75a.5.5 0 00.627-.168l1.002-1.637a.5.5 0 01.464-.265l.504-.006c.463-.006.843.342.923.805l.394 2.164a.5.5 0 00.512.435h2.163a.5.5 0 01.488.618l.386 2.083c.09.48.487.843.957.843h.525c.491 0 .914.398 1.01.898l.386 2.083a.5.5 0 00.488.618h2.163a.5.5 0 01.464-.265l1.002-1.637a.5.5 0 00.627-.168l.988-.75a.5.5 0 01.603.04l.453.339a.5.5 0 00.524.047l4.417-1.054a.5.5 0 01.512.121l.995.985c.37.37.371.968.004 1.336l-8.586 8.586z"></path></svg>
+                        Save Scenario Template
+                    </button>
+                </div>
+            </form>
         </div>
-    </div>
 
-</main>
-<script>
-    lucide.createIcons();
-</script>
+        <!-- ============================= -->
+        <!-- SCENARIO LIST -->
+        <!-- ============================= -->
+        <div class="bg-white p-8 rounded-2xl shadow-xl border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <svg class="w-6 h-6 mr-3 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                Existing Scenario Templates
+            </h2>
+
+            <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-inner">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="p-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider rounded-tl-xl">Title</th>
+                            <th class="p-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Simulation Type</th>
+                            <th class="p-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Difficulty</th>
+                            <th class="p-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                            <th class="p-4 text-center text-xs font-bold text-gray-600 uppercase tracking-wider rounded-tr-xl">Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody class="bg-white divide-y divide-gray-100">
+                        <?php $scenarios->rewind(); while ($s = $scenarios->current()): ?>
+                        <tr class="hover:bg-indigo-50/50 transition duration-150">
+                            <td class="p-4 text-sm font-medium text-gray-900"><?= $s['title'] ?></td>
+                            <td class="p-4 text-sm text-gray-600"><?= $s['simulation_type'] ?></td>
+                            <td class="p-4 text-sm">
+                                <?php
+                                $color = '';
+                                if ($s['difficulty'] === 'Basic') $color = 'bg-green-100 text-green-800 border-green-300';
+                                elseif ($s['difficulty'] === 'Intermediate') $color = 'bg-yellow-100 text-yellow-800 border-yellow-300';
+                                elseif ($s['difficulty'] === 'Advanced') $color = 'bg-red-100 text-red-800 border-red-300';
+                                ?>
+                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border <?= $color ?>">
+                                    <?= $s['difficulty'] ?>
+                                </span>
+                            </td>
+                            <td class="p-4 text-sm">
+                                <?php
+                                $statusColor = '';
+                                if ($s['status'] === 'Draft') $statusColor = 'bg-gray-100 text-gray-600 border-gray-300';
+                                elseif ($s['status'] === 'Pending Approval') $statusColor = 'bg-blue-100 text-blue-800 border-blue-300';
+                                elseif ($s['status'] === 'Published') $statusColor = 'bg-teal-100 text-teal-800 border-teal-300';
+                                ?>
+                                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border <?= $statusColor ?>">
+                                    <?= $s['status'] ?>
+                                </span>
+                            </td>
+                            <td class="p-4 text-center text-sm font-medium space-x-3">
+                                <a href="scenario_edit.php?id=<?= $s['id'] ?>"
+                                    class="text-indigo-600 hover:text-indigo-800 hover:underline transition">Edit</a>
+                                <span class="text-gray-300">|</span>
+                                <a href="scenario_delete.php?id=<?= $s['id'] ?>"
+                                    onclick="return confirm('WARNING: Are you sure you want to permanently delete the scenario: <?= $s['title'] ?>?')"
+                                    class="text-red-600 hover:text-red-800 hover:underline transition">Delete</a>
+                            </td>
+                        </tr>
+                        <?php $scenarios->next(); endwhile; ?>
+                    </tbody>
+
+                </table>
+            </div>
+            <!-- Pagination Placeholder -->
+            <div class="flex justify-between items-center mt-6 text-sm text-gray-600">
+                <span>Showing 1 to 3 of 3 results</span>
+                <div class="space-x-1">
+                    <button class="px-3 py-1 border rounded-lg hover:bg-gray-100 transition disabled:opacity-50" disabled>Previous</button>
+                    <button class="px-3 py-1 border rounded-lg bg-indigo-500 text-white font-semibold">1</button>
+                    <button class="px-3 py-1 border rounded-lg hover:bg-gray-100 transition disabled:opacity-50" disabled>Next</button>
+                </div>
+            </div>
+        </div>
+    </main>
 </body>
 </html>
